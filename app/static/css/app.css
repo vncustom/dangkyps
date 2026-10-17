@@ -61,6 +61,10 @@ tr:hover td { background: #333c78; }
 .player .ctl { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
 .player .tc { font-family: Consolas, monospace; font-size: 18px; background: #000; color: #39ff14; padding: 4px 10px; border-radius: 4px; }
 .player input[type=range] { flex: 1 1 100%; accent-color: #39ff14; }
+table.qc td:first-child { width: 48px; }
+table.qc tr.qc-pass td { background: rgba(47, 191, 113, .16); }
+table.qc tr.qc-fail td { background: rgba(240, 84, 106, .28); }
+table.qc tr.qc-info td { background: rgba(138, 180, 255, .08); }
 .progress { height: 14px; background: #1e2552; border-radius: 7px; overflow: hidden; margin-top: 8px; }
 .progress > div { height: 100%; width: 0; background: var(--ok); transition: width .2s; }
 .review-cols { display: grid; grid-template-columns: minmax(380px, 5fr) 6fr; gap: 18px; }

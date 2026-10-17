@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Upload file{% endblock %}
 {% block content %}
-<h1>Bước 1 · Upload file và tạo MD5</h1>
+<h1>Bước 1 · Check file, tạo MD5 và Upload</h1>
 <div class="panel">
   <form id="upload-form">
     <div class="grid cols-3">
@@ -12,16 +12,20 @@
           {% for u in units %}<option {{ 'selected' if u == user.ds_ban }}>{{ u }}</option>{% endfor %}
         </select></div>
     </div>
-    <p><button type="submit" id="upload-btn">Upload</button>
-      <span class="muted">File được cắt chunk {{ (chunk_size / 1048576)|int }} MB; server tính MD5 trong lúc nhận.</span></p>
+    <p class="row"><button type="button" id="check-btn" class="secondary" disabled>Check file</button>
+      <button type="submit" id="upload-btn" disabled>Upload</button>
+      <span class="muted">Check file: đọc thông số và tính MD5 trên <b>file gốc</b> ngay tại máy bạn (chưa gửi gì lên server).
+        Xem kết quả rồi mới Upload (cắt chunk {{ (chunk_size / 1048576)|int }} MB; server đối chiếu MD5 khi nhận đủ).</span></p>
   </form>
+  <div id="qc-results"></div>
   <div id="upload-list"></div>
+  <script id="qc-spec" type="application/json" data-worker="{{ asset('js/qc-worker.js', 'js/qc-core.js', 'js/md5.js') }}">{{ qc_spec|tojson }}</script>
 </div>
 
 <h2>Danh sách file</h2>
 {% if files|selectattr('status', 'equalto', 'processing')|list %}<div class="alert warn">Có file đang xử lý (thumbnail, proxy, đẩy lên storage). Trang tự làm mới sau vài giây.</div><script>setTimeout(() => location.reload(), 5000);</script>{% endif %}
 <div class="table-wrap"><table>
-  <thead><tr><th>File ID</th><th>Thumbnail</th><th>Tên file</th><th>MD5</th><th>Dung lượng</th><th>Thời lượng</th><th>Video</th><th>Đơn vị</th><th>Kiểm tra kỹ thuật</th><th>Trạng thái</th><th>Duyệt</th><th>Phiếu</th><th></th></tr></thead>
+  <thead><tr><th>File ID</th><th>Thumbnail</th><th>Tên file</th><th>MD5</th><th>Dung lượng</th><th>Thời lượng</th><th>Video</th><th>QC</th><th>Đơn vị</th><th>Kiểm tra kỹ thuật</th><th>Trạng thái</th><th>Duyệt</th><th>Phiếu</th><th></th></tr></thead>
   <tbody>
   {% for f in files %}
   <tr>
@@ -32,6 +36,7 @@
     <td>{{ f.size_bytes|size_mb }}</td>
     <td class="mono">{{ f.duration_tc }}</td>
     <td class="muted">{{ f.codec }} {{ f.width }}x{{ f.height }} · {{ f.fps }}fps</td>
+    <td>{% if f.qc_result %}<span class="badge {{ 'dat' if f.qc_result == 'PASS' else 'khong_dat' }}">{{ f.qc_result }}</span>{% endif %}</td>
     <td>{{ f.unit }}</td>
     <td class="muted">{{ f.tech_checked_by }}<br>{{ f.tech_checked_at|dt }}</td>
     <td><span class="badge {{ f.status }}">{{ {'processing': 'Đang xử lý', 'ready': 'Sẵn sàng', 'error': 'Lỗi'}[f.status] }}</span>{% if f.status_msg %}<div class="muted">{{ f.status_msg }}</div>{% endif %}</td>
@@ -40,8 +45,8 @@
     <td>{% if not f.so_phieu and f.status != 'processing' %}
       <form method="post" action="/files/{{ f.file_id }}/delete" onsubmit="return confirm('Xóa file {{ f.file_id }}?')"><button class="danger" type="submit">Xóa</button></form>{% endif %}</td>
   </tr>
-  {% else %}<tr><td colspan="13" class="muted">Chưa có file nào.</td></tr>{% endfor %}
+  {% else %}<tr><td colspan="14" class="muted">Chưa có file nào.</td></tr>{% endfor %}
   </tbody>
 </table></div>
-<script src="/static/js/upload.js"></script>
+<script src="{{ asset('js/upload.js') }}"></script>
 {% endblock %}

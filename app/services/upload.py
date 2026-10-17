@@ -25,11 +25,19 @@ def tmp_path(upload_id: str) -> Path:
     return config.TMP_DIR / f"{upload_id}.part"
 
 
-def init_upload(conn: sqlite3.Connection, username: str, file_name: str, size: int, unit: str) -> str:
+class Md5Mismatch(Exception):
+    """MD5 server nhan duoc khac MD5 tinh tu file goc luc Check."""
+
+
+def init_upload(conn: sqlite3.Connection, username: str, file_name: str, size: int, unit: str,
+                md5: str, qc_result: str = "", qc_json: str = "") -> str:
+    """md5 la MD5 tinh tu file goc luc Check file (iCheck) tren may ky thuat."""
     upload_id = uuid.uuid4().hex
     conn.execute(
-        "INSERT INTO uploads(upload_id, file_name, size_bytes, unit, received, username, created_at)"
-        " VALUES (?,?,?,?,0,?,?)", (upload_id, safe_name(file_name), size, unit, username, now_str()))
+        "INSERT INTO uploads(upload_id, file_name, size_bytes, unit, received, username, created_at,"
+        " md5, qc_result, qc_json) VALUES (?,?,?,?,0,?,?,?,?,?)",
+        (upload_id, safe_name(file_name), size, unit, username, now_str(),
+         md5.upper(), qc_result, qc_json))
     tmp_path(upload_id).write_bytes(b"")
     with _lock:
         _md5_states[upload_id] = hashlib.md5()
@@ -80,8 +88,16 @@ def finish_upload(conn: sqlite3.Connection, upload_id: str, username: str) -> di
         raise ValueError(f"Chưa nhận đủ file ({row['received']}/{row['size_bytes']} byte)")
     with _lock:
         h = _md5_states.pop(upload_id, None)
-    md5 = (h or _rebuild_md5(upload_id, row["size_bytes"])).hexdigest().upper()
+    received_md5 = (h or _rebuild_md5(upload_id, row["size_bytes"])).hexdigest().upper()
     path = tmp_path(upload_id)
+    if received_md5 != row["md5"]:
+        # file bi loi khi truyen, hoac bi thay doi tren may ky thuat sau khi Check
+        path.unlink(missing_ok=True)
+        conn.execute("DELETE FROM uploads WHERE upload_id = ?", (upload_id,))
+        raise Md5Mismatch(
+            f"MD5 không khớp: lúc Check {row['md5']}, server nhận được {received_md5}. "
+            "File bị lỗi khi truyền hoặc đã bị thay đổi sau khi Check - hãy Check và Upload lại.")
+    md5 = row["md5"]
     try:
         info = media.probe(path)
     except Exception:
@@ -93,11 +109,12 @@ def finish_upload(conn: sqlite3.Connection, upload_id: str, username: str) -> di
     now = now_str()
     cur = conn.execute(
         "INSERT INTO files(file_name, md5, size_bytes, duration_sec, duration_tc, fps, width, height,"
-        " codec, unit, uploaded_by, uploaded_at, tech_checked_by, tech_checked_at, status)"
-        " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'processing')",
+        " codec, unit, uploaded_by, uploaded_at, tech_checked_by, tech_checked_at, status,"
+        " qc_result, qc_json)"
+        " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'processing', ?, ?)",
         (row["file_name"], md5, row["size_bytes"], info["duration_sec"], info["duration_tc"],
          info["fps"], info["width"], info["height"], info["codec"], row["unit"],
-         username, now, username, now))
+         username, now, username, now, row["qc_result"], row["qc_json"]))
     file_id = cur.lastrowid
     conn.execute("DELETE FROM uploads WHERE upload_id = ?", (upload_id,))
     conn.execute("INSERT INTO reviews(file_id, reviewer_kind) VALUES (?, 'ban_phu_trach')", (file_id,))

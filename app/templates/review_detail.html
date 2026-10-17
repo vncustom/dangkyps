@@ -19,6 +19,13 @@
       <p class="muted">Tổng kết: <span class="badge {{ f.review_state }}">{{ STATE_LABELS[f.review_state] }}</span>
         (cần cả Ban phụ trách và Biên tập viên cùng Đạt để được lập phiếu)</p>
       {% if locked %}<div class="alert warn">File đã gắn vào phiếu {{ f.so_phieu }} — không thể đổi kết quả duyệt.</div>{% endif %}
+      {% if f.qc_items %}
+      <details><summary>Báo cáo QC của kỹ thuật (Check file): <span class="badge {{ 'dat' if f.qc_result == 'PASS' else 'khong_dat' }}">{{ f.qc_result }}</span></summary>
+        <div class="table-wrap" style="max-height:none;margin-top:8px"><table class="qc">
+          <thead><tr><th>Item</th><th>Parameter</th><th>HTV (tạm thời)</th><th>File information</th><th>Result</th></tr></thead>
+          <tbody>{% for i in f.qc_items %}<tr class="qc-{{ i.status|lower }}"><td>{{ i.n }}</td><td>{{ i.param }}</td><td>{{ i.expected }}</td><td class="mono">{{ i.actual }}</td><td><b>{{ i.status }}</b></td></tr>{% endfor %}</tbody>
+        </table></div></details>
+      {% endif %}
     </div>
     {% for kind in ['ban_phu_trach', 'bien_tap_vien'] %}
     {% set r = reviews[kind] %}

@@ -46,6 +46,29 @@ FILE_ID_START = int(os.environ.get("FILE_ID_START", "1"))
 
 UPLOAD_CHUNK_SIZE = 16 * 1024 * 1024
 
+# Yeu cau thong so file (tam thoi) cho nut "Check file" (iCheck) o buoc Ky thuat.
+# Chi mang tinh tham khao: ky thuat xem ket qua roi tu quyet dinh co Upload hay khong.
+QC_SPEC = {
+    "container": "MP4 (Base Media)",
+    "video_codec": "h264",          # h264 | hevc
+    "video_profiles": ["Main", "Main 10", "High"],   # dat khi profile nam trong danh sach
+    "video_level_min": 4.0,         # dat khi level >= gia tri nay
+    "width": 3840,
+    "height": 2160,
+    "aspect": "16:9",
+    "fps": 50.0,
+    "cadence": "constant",
+    "scan": "progressive",
+    "chroma": "4:2:0",
+    "bit_depth": 8,
+    # audio: "aac" = nen (chi nhan profile audio_aac_profile), "pcm" = khong nen (moi dinh dang PCM)
+    "audio_formats": ["aac", "pcm"],
+    "audio_aac_profile": "LC",
+    "audio_rate": 48000,
+    "audio_channels": 2,
+    "start_tc": "00:00:00:00",
+}
+
 # Danh muc
 KENH_SONG = ["HTV7", "HTV9", "HTV1", "HTV2", "HTV3", "HTV4"]
 NGUON_CUNG_CAP = ["HTV", "Sản xuất ngoài"]
@@ -60,6 +83,9 @@ THE_LOAI = {
     "TTDV": "TTDV",
     "TS": "TS",
 }
+# Tai khoan admin cua app (tu dong cap quyen admin moi lan khoi dong, neu user ton tai trong CSV/DB).
+# Co the doi bang bien moi truong ADMIN_USERS=admin,adminxe
+ADMIN_USERS = [u.strip() for u in os.environ.get("ADMIN_USERS", "admin,adminxe").split(",") if u.strip()]
 # Vai tro trong CSV (ds_vai_tro) duoc xem la "Ban phu trach"
 BAN_PHU_TRACH_ROLES = {"truong_ban", "pho_ban", "truong_phong", "pho_phong"}
 # Vai tro chuc nang gan trong app

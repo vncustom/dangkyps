@@ -1,4 +1,6 @@
 """Buoc 1: ky thuat upload file (MD5, luu CSDL, day len storage)."""
+import json
+import re
 import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -19,7 +21,8 @@ ky_thuat = require_roles("ky_thuat")
 def files_page(request: Request, user: dict = Depends(ky_thuat),
                conn: sqlite3.Connection = Depends(get_db)):
     return render(request, "files.html", user, files=domain.list_files(conn),
-                  units=domain.units(conn), chunk_size=config.UPLOAD_CHUNK_SIZE)
+                  units=domain.units(conn), chunk_size=config.UPLOAD_CHUNK_SIZE,
+                  qc_spec=config.QC_SPEC)
 
 
 @router.post("/api/upload/init")
@@ -29,13 +32,22 @@ async def upload_init(request: Request, user: dict = Depends(ky_thuat),
     name = str(body.get("file_name", "")).strip()
     size = int(body.get("size", 0))
     unit = str(body.get("unit", "")).strip()
+    md5 = str(body.get("md5", "")).strip()
+    qc = body.get("qc") if isinstance(body.get("qc"), dict) else {}
     if not name.lower().endswith(".mp4"):
         raise HTTPException(400, "Chỉ nhận file .mp4 (HEVC hoặc H.264)")
     if size <= 0:
         raise HTTPException(400, "File rỗng")
     if not unit:
         raise HTTPException(400, "Chưa chọn đơn vị")
-    upload_id = upload.init_upload(conn, user["username"], name, size, unit)
+    if not re.fullmatch(r"[0-9a-fA-F]{32}", md5):
+        raise HTTPException(400, "Thiếu MD5 từ bước Check file - hãy bấm Check file trước khi Upload")
+    qc_result = qc.get("result") if qc.get("result") in ("PASS", "FAIL") else ""
+    qc_json = json.dumps(qc.get("items") or [], ensure_ascii=False)
+    if len(qc_json) > 100_000:
+        raise HTTPException(400, "Báo cáo QC quá lớn")
+    upload_id = upload.init_upload(conn, user["username"], name, size, unit, md5,
+                                   qc_result, qc_json if qc_result else "")
     return {"upload_id": upload_id, "chunk_size": config.UPLOAD_CHUNK_SIZE}
 
 
@@ -70,6 +82,9 @@ def upload_finish(upload_id: str, user: dict = Depends(ky_thuat),
         result = upload.finish_upload(conn, upload_id, user["username"])
     except KeyError:
         raise HTTPException(404, "Upload không tồn tại")
+    except upload.Md5Mismatch as exc:
+        conn.commit()  # giu thay doi xoa upload/file tam
+        raise HTTPException(422, str(exc))
     except ValueError as exc:
         raise HTTPException(409, str(exc))
     except RuntimeError as exc:

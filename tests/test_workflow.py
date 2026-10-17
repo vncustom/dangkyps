@@ -1,5 +1,6 @@
 import csv
 import hashlib
+import json
 import sqlite3
 import time
 
@@ -15,9 +16,15 @@ def md5_upper(path):
     return hashlib.md5(path.read_bytes()).hexdigest().upper()
 
 
+QC_ITEMS = [{"n": 1, "param": "File name", "expected": "Display only", "actual": "x.mp4", "status": "INFO"}]
+
+
 def upload(client, path, unit="Ban A", chunk=50_000):
     data = path.read_bytes()
-    r = client.post("/api/upload/init", json={"file_name": path.name, "size": len(data), "unit": unit})
+    md5 = hashlib.md5(data).hexdigest().upper()  # nhu buoc Check file tinh tren file goc
+    r = client.post("/api/upload/init", json={
+        "file_name": path.name, "size": len(data), "unit": unit, "md5": md5,
+        "qc": {"result": "PASS", "items": QC_ITEMS}})
     assert r.status_code == 200, r.text
     uid = r.json()["upload_id"]
     for off in range(0, len(data), chunk):
@@ -71,6 +78,20 @@ def test_import_real_csv_hashes_default_password(tmp_path):
     assert mem.execute("SELECT 1 FROM user_roles WHERE username='admin' AND role='admin'").fetchone()
 
 
+def test_admin_users_from_config_get_admin_role():
+    from app.services.importer import ensure_admins
+    assert config.ADMIN_USERS == ["admin", "adminxe"]
+    mem = sqlite3.connect(":memory:")
+    mem.row_factory = sqlite3.Row
+    mem.executescript(SCHEMA)
+    import_users_csv(mem, config.USERS_CSV)       # CSV that co ca admin va adminxe
+    roles = {r[0] for r in mem.execute("SELECT username FROM user_roles WHERE role = 'admin'")}
+    assert roles == {"admin", "adminxe"}
+    mem.execute("DELETE FROM user_roles")          # khoi dong lai phai cap lai
+    assert sorted(ensure_admins(mem)) == ["admin", "adminxe"]
+    assert {r[0] for r in mem.execute("SELECT username FROM user_roles WHERE role = 'admin'")} == {"admin", "adminxe"}
+
+
 def test_login_and_protection(login):
     anon = login()
     r = anon.get("/files")
@@ -105,11 +126,52 @@ def test_upload_md5_matches_and_rejects_non_mp4(login, sample_videos):
     assert f["duration_tc"].startswith("00:00:02") and f["storage_path"]
     assert f["proxy_path"] == ""  # mac dinh khong tao proxy, xem truc tiep file goc
     assert (config.LOCAL_STORAGE_DIR / f["storage_path"]).stat().st_size == path.stat().st_size
-    r = tech.post("/api/upload/init", json={"file_name": "x.mxf", "size": 10, "unit": "Ban A"})
+    r = tech.post("/api/upload/init", json={"file_name": "x.mxf", "size": 10, "unit": "Ban A", "md5": "0" * 32})
     assert r.status_code == 400
     # chunk sai offset bi tu choi
-    init = tech.post("/api/upload/init", json={"file_name": "a.mp4", "size": 100, "unit": "Ban A"}).json()
+    init = tech.post("/api/upload/init", json={"file_name": "a.mp4", "size": 100, "unit": "Ban A",
+                                               "md5": "0" * 32}).json()
     assert tech.put(f"/api/upload/{init['upload_id']}?offset=5", content=b"x").status_code == 409
+
+
+def test_upload_requires_md5_from_check(login, sample_videos):
+    tech = login("tech1")
+    base = {"file_name": "a.mp4", "size": 10, "unit": "Ban A"}
+    assert tech.post("/api/upload/init", json=base).status_code == 400            # thieu md5
+    assert tech.post("/api/upload/init", json={**base, "md5": "xyz"}).status_code == 400  # md5 sai dinh dang
+
+
+def test_md5_stored_is_the_one_from_check_and_mismatch_rejected(login, sample_videos):
+    tech = login("tech1")
+    path = sample_videos["h264"]
+    data = path.read_bytes()
+    # 1) MD5 luc Check KHAC noi dung gui len (file doi sau khi Check / loi truyen) -> tu choi, khong tao file
+    with db_session() as conn:
+        before = conn.execute("SELECT COUNT(*) FROM files").fetchone()[0]
+    wrong = "A" * 32
+    uid = tech.post("/api/upload/init", json={"file_name": path.name, "size": len(data), "unit": "Ban A",
+                                              "md5": wrong}).json()["upload_id"]
+    assert tech.put(f"/api/upload/{uid}?offset=0", content=data).status_code == 200
+    r = tech.post(f"/api/upload/{uid}/finish")
+    assert r.status_code == 422 and "MD5 không khớp" in r.json()["detail"]
+    with db_session() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM files").fetchone()[0] == before
+        assert conn.execute("SELECT 1 FROM uploads WHERE upload_id = ?", (uid,)).fetchone() is None
+    assert not (config.TMP_DIR / f"{uid}.part").exists()
+    # 2) MD5 dung -> luu dung gia tri tu Check (chu hoa) + ket qua QC
+    lower = hashlib.md5(data).hexdigest()  # Check gui chu thuong van duoc chap nhan
+    uid = tech.post("/api/upload/init", json={"file_name": path.name, "size": len(data), "unit": "Ban A",
+                                              "md5": lower, "qc": {"result": "FAIL", "items": QC_ITEMS}}).json()["upload_id"]
+    tech.put(f"/api/upload/{uid}?offset=0", content=data)
+    res = tech.post(f"/api/upload/{uid}/finish").json()
+    assert res["md5"] == lower.upper()
+    with db_session() as conn:
+        row = conn.execute("SELECT md5, qc_result, qc_json FROM files WHERE file_id = ?", (res["file_id"],)).fetchone()
+    assert row["md5"] == lower.upper() and row["qc_result"] == "FAIL" and json.loads(row["qc_json"]) == QC_ITEMS
+    wait_ready(res["file_id"])
+    page = make_client("admin")
+    page = page.get(f"/review/{res['file_id']}")
+    assert page.status_code == 200 and "Báo cáo QC" in page.text
 
 
 def test_hevc_upload(login, sample_videos):
@@ -245,6 +307,17 @@ def test_password_change_and_admin_roles(login):
     # admin dat lai mat khau mac dinh
     assert admin.post("/admin/users/nobody/reset-password").status_code == 303
     assert make_client("nobody").get("/").status_code == 200
+
+
+def test_static_assets_are_versioned_and_not_cached(login):
+    tech = login("tech1")
+    page = tech.get("/files").text
+    for name in ("js/upload.js", "css/app.css"):
+        assert f"/static/{name}?v=" in page
+    assert "/static/js/qc-worker.js?v=" in page          # URL worker cung co version
+    r = tech.get("/static/js/upload.js")
+    assert r.status_code == 200 and r.headers["cache-control"] == "no-cache"
+    assert 'id="check-btn"' in page and page.index('id="check-btn"') < page.index('id="upload-btn"')
 
 
 def test_admin_storage_settings(login):

@@ -35,9 +35,22 @@ def _size_mb(size_bytes) -> str:
     return f"{(size_bytes or 0) / 1024 / 1024:,.2f} MB"
 
 
+def asset(path: str, *also: str) -> str:
+    """URL file tinh kem ?v=<mtime> de trinh duyet khong dung ban JS/CSS cu trong cache.
+    Truyen them `also` khi file nay import cac file khac (vd worker)."""
+    static = config.BASE_DIR / "app" / "static"
+    mtimes = []
+    for p in (path, *also):
+        try:
+            mtimes.append(int((static / p).stat().st_mtime))
+        except OSError:
+            pass
+    return f"/static/{path}?v={max(mtimes, default=0)}"
+
+
 templates.env.filters.update(dt=_dt, d=_d, size_mb=_size_mb)
 templates.env.globals.update(
-    has_role=has_role, STATE_LABELS=STATE_LABELS, ROLE_LABELS=config.ROLE_LABELS,
+    has_role=has_role, STATE_LABELS=STATE_LABELS, ROLE_LABELS=config.ROLE_LABELS, asset=asset,
 )
 
 

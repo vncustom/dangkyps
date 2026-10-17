@@ -7,6 +7,17 @@ from app import config
 from app.security import hash_password
 
 
+def ensure_admins(conn: sqlite3.Connection) -> list[str]:
+    """Cap quyen admin cho cac user trong config.ADMIN_USERS (khong phan biet hoa thuong). Tra ve danh sach da cap."""
+    granted = []
+    for name in config.ADMIN_USERS:
+        row = conn.execute("SELECT username FROM users WHERE lower(username) = lower(?)", (name,)).fetchone()
+        if row:
+            conn.execute("INSERT OR IGNORE INTO user_roles(username, role) VALUES (?, 'admin')", (row["username"],))
+            granted.append(row["username"])
+    return granted
+
+
 def import_users_csv(conn: sqlite3.Connection, csv_path: Path = None,
                      default_password: str = None, reset_existing: bool = False) -> dict:
     """Nap CSV vao bang users. Mat khau mac dinh duoc hash (khong luu plaintext).
@@ -49,7 +60,5 @@ def import_users_csv(conn: sqlite3.Connection, csv_path: Path = None,
                     " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                     (username,) + fields + (pw_hash, int(config.FORCE_PASSWORD_CHANGE)))
                 created += 1
-            if username.lower() == "admin":
-                conn.execute("INSERT OR IGNORE INTO user_roles(username, role) VALUES (?, 'admin')",
-                             (username,))
+    ensure_admins(conn)
     return {"created": created, "updated": updated}

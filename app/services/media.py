@@ -10,7 +10,10 @@ _NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 
 def _run(cmd: list[str], timeout: int | None = None) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, capture_output=True, timeout=timeout, creationflags=_NO_WINDOW)
+    try:
+        return subprocess.run(cmd, capture_output=True, timeout=timeout, creationflags=_NO_WINDOW)
+    except FileNotFoundError:
+        raise RuntimeError(f"Không tìm thấy {cmd[0]} - hãy chép thư mục ffmpeg/ hoặc đặt FFMPEG_DIR trong .env")
 
 
 def frames_to_tc(total_frames: int, fps: float) -> str:

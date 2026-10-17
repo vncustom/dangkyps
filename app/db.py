@@ -47,7 +47,9 @@ CREATE TABLE IF NOT EXISTS files (
     tech_checked_by TEXT NOT NULL DEFAULT '',
     tech_checked_at TEXT NOT NULL DEFAULT '',
     status TEXT NOT NULL DEFAULT 'processing',
-    status_msg TEXT NOT NULL DEFAULT ''
+    status_msg TEXT NOT NULL DEFAULT '',
+    qc_result TEXT NOT NULL DEFAULT '',   -- PASS | FAIL (ket qua Check file luc upload)
+    qc_json TEXT NOT NULL DEFAULT ''      -- bao cao QC chi tiet (JSON)
 );
 CREATE INDEX IF NOT EXISTS idx_files_md5 ON files(md5);
 
@@ -58,7 +60,10 @@ CREATE TABLE IF NOT EXISTS uploads (
     unit TEXT NOT NULL DEFAULT '',
     received INTEGER NOT NULL DEFAULT 0,
     username TEXT NOT NULL,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    md5 TEXT NOT NULL DEFAULT '',         -- MD5 tinh tu file goc luc Check (trinh duyet)
+    qc_result TEXT NOT NULL DEFAULT '',
+    qc_json TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS reviews (
@@ -138,6 +143,22 @@ def _seed_sequence(conn: sqlite3.Connection, table: str, start: int) -> None:
         conn.execute("INSERT INTO sqlite_sequence(name, seq) VALUES (?, ?)", (table, start - 1))
 
 
+_MIGRATIONS = [  # (bang, cot, DDL) - bo sung cot cho DB tao tu phien ban cu
+    ("files", "qc_result", "TEXT NOT NULL DEFAULT ''"),
+    ("files", "qc_json", "TEXT NOT NULL DEFAULT ''"),
+    ("uploads", "md5", "TEXT NOT NULL DEFAULT ''"),
+    ("uploads", "qc_result", "TEXT NOT NULL DEFAULT ''"),
+    ("uploads", "qc_json", "TEXT NOT NULL DEFAULT ''"),
+]
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    for table, column, ddl in _MIGRATIONS:
+        cols = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
+        if column not in cols:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
+
+
 def init_db() -> None:
     for d in (config.DATA_DIR, config.TMP_DIR, config.PROXY_DIR, config.THUMB_DIR):
         d.mkdir(parents=True, exist_ok=True)
@@ -145,6 +166,7 @@ def init_db() -> None:
     try:
         conn.execute("PRAGMA journal_mode = WAL")
         conn.executescript(SCHEMA)
+        _migrate(conn)
         _seed_sequence(conn, "tickets", config.TICKET_START)
         _seed_sequence(conn, "files", config.FILE_ID_START)
         conn.commit()

@@ -1,4 +1,5 @@
 """Truy van nghiep vu dung chung: trang thai duyet file, danh sach file."""
+import json
 import sqlite3
 
 FILE_SELECT = """
@@ -22,6 +23,10 @@ def review_state(bp_result: str | None, btv_result: str | None) -> str:
 def _decorate(row: sqlite3.Row) -> dict:
     d = dict(row)
     d["review_state"] = review_state(d["bp_result"], d["btv_result"])
+    try:
+        d["qc_items"] = json.loads(d["qc_json"]) if d.get("qc_json") else []
+    except ValueError:
+        d["qc_items"] = []
     return d
 
 
