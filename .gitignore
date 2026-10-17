@@ -1,0 +1,43 @@
+# --- Python ---
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# --- Cau hinh / bi mat ---
+.env
+
+# --- Du lieu runtime (DB, file upload, thumbnail, proxy, FTP local, log) ---
+data/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite3
+*.log
+
+# --- File video / media (khong push len GitHub) ---
+*.mp4
+*.mxf
+*.mov
+*.mkv
+*.avi
+*.m4v
+*.wav
+
+# --- ffmpeg binary (DLL > 90 MB, GitHub gioi han 100 MB/file) ---
+ffmpeg/
+
+# --- Tai lieu noi bo: CSV chua ten/email nhan vien, anh chup man hinh he thong ---
+tailieu chuan bi lam app/
+
+# --- IDE / OS / Claude ---
+.vscode/
+.idea/
+.claude/
+.DS_Store
+Thumbs.db
+desktop.ini

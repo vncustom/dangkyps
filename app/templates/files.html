@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Upload file{% endblock %}
+{% block content %}
+<h1>Bước 1 · Upload file và tạo MD5</h1>
+<div class="panel">
+  <form id="upload-form">
+    <div class="grid cols-3">
+      <div class="span-2"><label>Chọn file .mp4 (HEVC / H.264)</label><input type="file" id="upload-files" accept=".mp4,video/mp4" multiple required></div>
+      <div><label>Đơn vị (ban phụ trách duyệt)</label>
+        <select id="upload-unit" required>
+          <option value="">-- chọn đơn vị --</option>
+          {% for u in units %}<option {{ 'selected' if u == user.ds_ban }}>{{ u }}</option>{% endfor %}
+        </select></div>
+    </div>
+    <p><button type="submit" id="upload-btn">Upload</button>
+      <span class="muted">File được cắt chunk {{ (chunk_size / 1048576)|int }} MB; server tính MD5 trong lúc nhận.</span></p>
+  </form>
+  <div id="upload-list"></div>
+</div>
+
+<h2>Danh sách file</h2>
+{% if files|selectattr('status', 'equalto', 'processing')|list %}<div class="alert warn">Có file đang xử lý (thumbnail, proxy, đẩy lên storage). Trang tự làm mới sau vài giây.</div><script>setTimeout(() => location.reload(), 5000);</script>{% endif %}
+<div class="table-wrap"><table>
+  <thead><tr><th>File ID</th><th>Thumbnail</th><th>Tên file</th><th>MD5</th><th>Dung lượng</th><th>Thời lượng</th><th>Video</th><th>Đơn vị</th><th>Kiểm tra kỹ thuật</th><th>Trạng thái</th><th>Duyệt</th><th>Phiếu</th><th></th></tr></thead>
+  <tbody>
+  {% for f in files %}
+  <tr>
+    <td><b>{{ f.file_id }}</b></td>
+    <td>{% if f.thumb_path %}<img class="thumb" src="/media/{{ f.file_id }}/thumb" alt="">{% else %}<div class="thumb"></div>{% endif %}</td>
+    <td>{{ f.file_name }}</td>
+    <td class="mono">{{ f.md5 }}</td>
+    <td>{{ f.size_bytes|size_mb }}</td>
+    <td class="mono">{{ f.duration_tc }}</td>
+    <td class="muted">{{ f.codec }} {{ f.width }}x{{ f.height }} · {{ f.fps }}fps</td>
+    <td>{{ f.unit }}</td>
+    <td class="muted">{{ f.tech_checked_by }}<br>{{ f.tech_checked_at|dt }}</td>
+    <td><span class="badge {{ f.status }}">{{ {'processing': 'Đang xử lý', 'ready': 'Sẵn sàng', 'error': 'Lỗi'}[f.status] }}</span>{% if f.status_msg %}<div class="muted">{{ f.status_msg }}</div>{% endif %}</td>
+    <td><span class="badge {{ f.review_state }}">{{ STATE_LABELS[f.review_state] }}</span></td>
+    <td>{{ f.so_phieu or '' }}</td>
+    <td>{% if not f.so_phieu and f.status != 'processing' %}
+      <form method="post" action="/files/{{ f.file_id }}/delete" onsubmit="return confirm('Xóa file {{ f.file_id }}?')"><button class="danger" type="submit">Xóa</button></form>{% endif %}</td>
+  </tr>
+  {% else %}<tr><td colspan="13" class="muted">Chưa có file nào.</td></tr>{% endfor %}
+  </tbody>
+</table></div>
+<script src="/static/js/upload.js"></script>
+{% endblock %}

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Người dùng{% endblock %}
+{% block content %}
+<h1>Quản trị người dùng <span class="muted">({{ total }} user)</span></h1>
+{% if msg %}<div class="alert ok">{{ msg }}</div>{% endif %}
+<div class="row" style="margin-bottom:12px">
+  <form method="get" class="row"><input type="text" name="q" value="{{ q }}" placeholder="Tên đăng nhập, họ tên, ban..." style="width:300px"><button type="submit">Tìm</button></form>
+  <form method="post" action="/admin/users/import" style="margin-left:auto" onsubmit="return confirm('Nạp lại từ file CSV cấu hình? (user mới nhận mật khẩu mặc định, user cũ chỉ cập nhật thông tin)')"><button class="secondary" type="submit">Nạp lại từ CSV</button></form>
+</div>
+<p class="muted">Ban phụ trách được suy ra tự động từ cột ds_vai_tro trong CSV (truong_ban, pho_ban, truong_phong, pho_phong). Các vai trò dưới đây là vai trò chức năng gán trong app. Hiển thị tối đa 300 user.</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>Tên đăng nhập</th><th>Họ tên</th><th>Ban / đơn vị</th><th>Vai trò CSV</th><th>Vai trò chức năng</th><th></th></tr></thead>
+  <tbody>
+  {% for u in users %}
+  <tr>
+    <td>{{ u.username }}{% if not u.active %} <span class="badge khong_dat">Khóa</span>{% endif %}</td>
+    <td>{{ u.full_name }}</td><td>{{ u.ds_ban }}</td>
+    <td>{{ u.ds_vai_tro }}{% if u.is_bpt %} <span class="badge ready">Ban phụ trách</span>{% endif %}</td>
+    <td>
+      <form method="post" action="/admin/users/{{ u.username }}/roles" class="row">
+        {% for r in app_roles %}<label style="display:inline;margin:0"><input type="checkbox" name="role" value="{{ r }}" {{ 'checked' if r in u.roles }}> {{ ROLE_LABELS[r] }}</label>{% endfor %}
+        <button type="submit">Lưu</button>
+      </form>
+    </td>
+    <td class="row">
+      <form method="post" action="/admin/users/{{ u.username }}/reset-password" onsubmit="return confirm('Đặt lại mật khẩu mặc định cho {{ u.username }}?')"><button class="secondary" type="submit">Đặt lại MK</button></form>
+      <form method="post" action="/admin/users/{{ u.username }}/active"><button class="{{ 'ok' if not u.active else 'danger' }}" type="submit">{{ 'Mở khóa' if not u.active else 'Khóa' }}</button></form>
+    </td>
+  </tr>
+  {% else %}<tr><td colspan="6" class="muted">Không có user.</td></tr>{% endfor %}
+  </tbody>
+</table></div>
+{% endblock %}

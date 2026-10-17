@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Phiếu đăng ký phát sóng {{ t.so_phieu }}</title>
+<style>
+  @page { size: A4 landscape; margin: 10mm; }
+  body { font-family: "Times New Roman", serif; font-size: 15px; color: #000; background: #fff; margin: 0; padding: 12px; }
+  .noprint { margin: 0 0 14px 40px; }
+  .noprint button { background: #1f2a8a; color: #fff; border: 0; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 14px; }
+  table.form { width: 100%; max-width: 1100px; border-collapse: collapse; table-layout: fixed; margin: 0 auto; border: 1.5px solid #000; }
+  table.form td, table.form th { border: 1px solid #000; padding: 5px 7px; vertical-align: top; }
+  th { font-weight: 700; text-align: center; }
+  .title { font-size: 20px; font-weight: 700; vertical-align: middle; }
+  .center { text-align: center; }
+  .seg { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .seg td, .seg th { border: 1px solid #000; height: 22px; padding: 2px 4px; }
+  .seg .label { width: 14%; text-align: center; font-weight: 700; vertical-align: middle; }
+  .tall { height: 95px; }
+  .dots { letter-spacing: 1px; }
+  @media print { .noprint { display: none; } body { padding: 0; } }
+</style>
+</head>
+<body>
+<div class="noprint"><button onclick="window.print()">In phiếu</button></div>
+<table class="form">
+  <colgroup>{% for _ in range(12) %}<col style="width: 8.333%">{% endfor %}</colgroup>
+  <tr>
+    <td colspan="4" class="title">PHIẾU ĐĂNG KÝ PHÁT SÓNG</td>
+    <td colspan="3"><b>Số phiếu:</b> {{ t.so_phieu }}</td>
+    <td colspan="5"><b>Ngày phát sóng:</b> {{ t.ngay_phat_song|d }}</td>
+  </tr>
+  <tr>
+    <td colspan="7"><b>Đơn vị:</b> {{ don_vi }}</td>
+    <td colspan="5"><b>Kênh:</b> {{ t.kenh }}</td>
+  </tr>
+  <tr><td colspan="12"><b>Tên chương trình:</b> {{ t.ten_chuong_trinh }}</td></tr>
+  <tr><td colspan="12"><b>MD5:</b> {{ f.md5 if f else '' }}</td></tr>
+  <tr>
+    <td colspan="8" rowspan="2"><b>Tên File</b><br>{{ f.file_name if f else '' }}</td>
+    <th colspan="2">Dung lượng</th>
+    <th colspan="2">Thời lượng</th>
+  </tr>
+  <tr>
+    <td colspan="2" class="center">{{ f.size_bytes|size_mb if f else '' }}</td>
+    <td colspan="2" class="center">{{ f.duration_tc if f else '' }}</td>
+  </tr>
+  <tr>
+    <td colspan="12" style="padding:0">
+      <table class="seg">
+        <tr>
+          <td class="label" rowspan="{{ segment_rows + 2 }}">Phân đoạn</td>
+          <th colspan="4">Time code in</th><th colspan="4">Time code out</th>
+        </tr>
+        <tr>{% for _ in range(2) %}<th>Giờ</th><th>Phút</th><th>Giây</th><th>Frame</th>{% endfor %}</tr>
+        {% for _ in range(segment_rows) %}<tr>{% for _ in range(8) %}<td></td>{% endfor %}</tr>{% endfor %}
+      </table>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="7"><b>Biên tập viên duyệt:</b> {{ btv.name if btv else '' }}<br><b>Ngày kiểm duyệt:</b> {{ btv.at|dt if btv else '' }}</td>
+    <td colspan="2"><b>Phát lần:</b></td>
+    <td colspan="3"><b>Ngày hoàn chỉnh file:</b></td>
+  </tr>
+  <tr>
+    <td colspan="6"><b>Kiểm tra kỹ thuật:</b> {{ tech.name if tech else '' }}<br><b>Ngày kiểm tra:</b> {{ tech.at|dt if tech else '' }}</td>
+    <td colspan="2" class="center"><b>Đơn vị hậu kỳ:</b><br><span class="dots">..........................</span></td>
+    <td colspan="2" class="center"><b>Phát Hình:</b><br><span class="dots">..........................</span></td>
+    <td colspan="2"><b>Mã số tiết mục (máy cấp)</b><br>{{ t.assetform_id }}</td>
+  </tr>
+  <tr>
+    <td colspan="12" class="tall"><b>Ban phụ trách duyệt:</b> {{ bp.name if bp else '' }}<br><b>Ngày kiểm duyệt:</b> {{ bp.at|dt if bp else '' }}</td>
+  </tr>
+</table>
+</body>
+</html>

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Cấu hình storage{% endblock %}
+{% block content %}
+<h1>Cấu hình storage lưu file video</h1>
+{% if msg %}<div class="alert ok">{{ msg }}</div>{% endif %}
+{% if error %}<div class="alert error">{{ error }}</div>{% endif %}
+<div class="panel" style="max-width:720px">
+  <p class="muted">Áp dụng cho các file upload từ thời điểm lưu. File đã upload vẫn nằm ở storage cũ — đổi storage giữa chừng cần di chuyển file thủ công.</p>
+  <form method="post" action="/admin/settings">
+    <label>Loại storage</label>
+    <select name="storage_type">
+      <option value="ftp" {{ 'selected' if s.storage_type == 'ftp' }}>FTP</option>
+      <option value="local" {{ 'selected' if s.storage_type == 'local' }}>Thư mục cục bộ trên server (data/storage)</option>
+    </select>
+    <div class="grid cols-2">
+      <div><label>FTP host</label><input type="text" name="ftp_host" value="{{ s.ftp_host }}"></div>
+      <div><label>FTP port</label><input type="number" name="ftp_port" value="{{ s.ftp_port }}"></div>
+      <div><label>FTP user</label><input type="text" name="ftp_user" value="{{ s.ftp_user }}"></div>
+      <div><label>FTP password</label><input type="password" name="ftp_pass" value="{{ s.ftp_pass }}" autocomplete="new-password"></div>
+      <div class="span-2"><label>Thư mục gốc trên FTP</label><input type="text" name="ftp_base_dir" value="{{ s.ftp_base_dir }}"></div>
+    </div>
+    <label style="display:flex;gap:8px;align-items:center;margin-top:16px">
+      <input type="checkbox" name="create_proxy" value="1" {{ 'checked' if s.create_proxy == '1' }}>
+      Tạo thêm bản proxy H.264 720p khi upload (tốn thêm dung lượng; mặc định tắt = xem trực tiếp file gốc)
+    </label>
+    <p class="row"><button type="submit" name="action" value="save">Lưu</button>
+      <button type="submit" name="action" value="test" class="secondary">Kiểm tra kết nối</button></p>
+  </form>
+</div>
+{% endblock %}

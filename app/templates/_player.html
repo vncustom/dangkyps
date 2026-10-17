@@ -1,0 +1,16 @@
+{# Macro player: render_player(f) voi f la dong files #}
+{% macro render_player(f) %}
+<div class="player" data-fps="{{ f.fps }}" data-duration="{{ f.duration_sec }}" data-duration-tc="{{ f.duration_tc }}"
+     {% if f.proxy_path and f.storage_path %}data-original="/media/{{ f.file_id }}/original"{% endif %}>
+  <video controls preload="metadata" src="/media/{{ f.file_id }}/{{ 'proxy' if f.proxy_path else 'original' }}" {% if f.thumb_path %}poster="/media/{{ f.file_id }}/thumb"{% endif %}></video>
+  <div class="ctl">
+    <button type="button" class="secondary prev-frame">⏮ -1 Frame</button>
+    <button type="button" class="secondary next-frame">+1 Frame ⏭</button>
+    <span class="tc">00:00:00:00 / {{ f.duration_tc }}</span>
+    <span class="muted frame-info"></span>
+    <input type="range" min="0" max="1" value="0" step="1" aria-label="Frame scrubber">
+  </div>
+  <div class="muted" style="margin-top:6px">Phím tắt: <b>,</b> lùi 1 frame · <b>.</b> tiến 1 frame · Space phát/dừng (click vào player trước)</div>
+</div>
+<script src="/static/js/player.js"></script>
+{% endmacro %}

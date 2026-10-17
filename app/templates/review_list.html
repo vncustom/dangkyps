@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Kiểm duyệt{% endblock %}
+{% block content %}
+<h1>Bước 2 · Kiểm duyệt nội dung</h1>
+<div class="tabs row" style="margin-bottom:0">
+  <a href="/review?show=pending" class="{{ 'active' if show == 'pending' }}">Chưa duyệt</a>
+  <a href="/review?show=done" class="{{ 'active' if show == 'done' }}">Đã có kết quả</a>
+  <a href="/review?show=all" class="{{ 'active' if show == 'all' }}">Tất cả</a>
+</div>
+<div class="table-wrap"><table>
+  <thead><tr><th>File ID</th><th>Thumbnail</th><th>File phát sóng</th><th>MD5</th><th>Thời lượng</th><th>Đơn vị</th><th>Ban phụ trách</th><th>Biên tập viên</th><th>Tổng</th><th></th></tr></thead>
+  <tbody>
+  {% for f in files %}
+  <tr>
+    <td><b>{{ f.file_id }}</b></td>
+    <td>{% if f.thumb_path %}<img class="thumb" src="/media/{{ f.file_id }}/thumb" alt="">{% else %}<div class="thumb"></div>{% endif %}</td>
+    <td>{{ f.file_name }}</td><td class="mono">{{ f.md5 }}</td><td class="mono">{{ f.duration_tc }}</td><td>{{ f.unit }}</td>
+    <td><span class="badge {{ f.bp_result }}">{{ STATE_LABELS[f.bp_result] }}</span></td>
+    <td><span class="badge {{ f.btv_result }}">{{ STATE_LABELS[f.btv_result] }}</span></td>
+    <td><span class="badge {{ f.review_state }}">{{ STATE_LABELS[f.review_state] }}</span></td>
+    <td><a class="btn" href="/review/{{ f.file_id }}">Duyệt</a></td>
+  </tr>
+  {% else %}<tr><td colspan="10" class="muted">Không có file nào.</td></tr>{% endfor %}
+  </tbody>
+</table></div>
+{% endblock %}

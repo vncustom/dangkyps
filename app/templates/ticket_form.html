@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% from "_player.html" import render_player %}
+{% block title %}{{ 'Phiếu ' ~ t.so_phieu if t and t.so_phieu else 'Thêm phiếu' }}{% endblock %}
+{% block content %}
+{% set is_new = not (t and t.so_phieu) %}
+<div class="row"><a class="btn secondary" href="/tickets">← Danh sách phiếu</a>
+  <h1 style="margin:0">Chi tiết đăng ký phát sóng{% if not is_new %} · Số phiếu {{ t.so_phieu }}{% endif %}</h1>
+  {% if not is_new %}<a class="btn" style="margin-left:auto" href="/print/{{ t.so_phieu }}" target="_blank">In phiếu</a>{% endif %}</div>
+
+{% if errors %}<div class="alert error" style="margin-top:12px">{% for e in errors %}{{ e }}{% if not loop.last %}<br>{% endif %}{% endfor %}</div>{% endif %}
+
+<div class="review-cols" style="margin-top:14px">
+  <div>
+    {% if file %}
+      {{ render_player(file) }}
+    {% else %}<div class="panel muted">Chưa có file. Sau khi lưu phiếu, chọn file đã kiểm duyệt ở bên dưới để nạp vào phiếu.</div>{% endif %}
+  </div>
+  <div class="panel">
+    <form method="post" action="{{ '/tickets/new' if is_new else '/tickets/' ~ t.so_phieu ~ '/edit' }}">
+      <div class="grid cols-3">
+        <div><label>Số phiếu</label><input type="text" value="{{ t.so_phieu if not is_new else '(tự động)' }}" readonly></div>
+        <div><label>AssetForm ID *</label><input type="text" name="assetform_id" value="{{ t.assetform_id if t else '' }}" required></div>
+        <div><label>Kênh sóng *</label>
+          <select name="kenh" required>{% for k in kenh_list %}<option {{ 'selected' if t and t.kenh == k }}>{{ k }}</option>{% endfor %}</select></div>
+        <div class="span-2"><label>Tên chương trình *</label><input type="text" name="ten_chuong_trinh" value="{{ t.ten_chuong_trinh if t else '' }}" required></div>
+        <div><label>Ngày phát sóng *</label><input type="date" name="ngay_phat_song" value="{{ t.ngay_phat_song if t else today }}" required></div>
+        <div class="span-2"><label>File phát sóng</label><input type="text" value="{{ t.file_name or '' if t else '' }}" readonly placeholder="(lấy từ file đã kiểm duyệt)"></div>
+        <div><label>File ID</label><input type="text" value="{{ t.file_id or '' if t else '' }}" readonly></div>
+        <div class="span-3"><label>MD5</label><input type="text" value="{{ t.md5 or '' if t else '' }}" readonly></div>
+        <div><label>Thể loại *</label>
+          <select name="the_loai" required><option value="">-- chọn --</option>{% for code in the_loai %}<option value="{{ code }}" {{ 'selected' if t and t.the_loai == code }}>{{ code }}</option>{% endfor %}</select></div>
+        <div><label>Nguồn cung cấp *</label>
+          <select name="nguon_cung_cap" required>{% for n in nguon_list %}<option {{ 'selected' if t and t.nguon_cung_cap == n }}>{{ n }}</option>{% endfor %}</select></div>
+        <div><label>Thời lượng</label><input type="text" value="{{ t.duration_tc or '' if t else '' }}" readonly></div>
+        <div class="span-3"><label>Ghi chú</label><textarea name="ghi_chu" rows="3">{{ t.ghi_chu if t else '' }}</textarea></div>
+      </div>
+      <p><button type="submit">Cập nhật</button> <a class="btn secondary" href="/tickets">Bỏ qua</a></p>
+    </form>
+  </div>
+</div>
+
+{% if not is_new %}
+<h2>File phát sóng của phiếu</h2>
+{% if t.file_id %}
+<div class="panel row">
+  <span><b>File {{ t.file_id }}</b> · {{ t.file_name }} · <span class="mono">{{ t.md5 }}</span></span>
+  <form method="post" action="/tickets/{{ t.so_phieu }}/detach" style="margin-left:auto" onsubmit="return confirm('Bỏ file ra khỏi phiếu?')"><button class="danger" type="submit">Bỏ file ra khỏi phiếu</button></form>
+</div>
+{% else %}
+<div class="table-wrap"><table>
+  <thead><tr><th>File ID</th><th>Thumbnail</th><th>File phát sóng</th><th>MD5</th><th>Thời lượng</th><th>Đơn vị</th><th></th></tr></thead>
+  <tbody>
+  {% for f in approved %}
+  <tr><td><b>{{ f.file_id }}</b></td>
+    <td>{% if f.thumb_path %}<img class="thumb" src="/media/{{ f.file_id }}/thumb" alt="">{% endif %}</td>
+    <td>{{ f.file_name }}</td><td class="mono">{{ f.md5 }}</td><td class="mono">{{ f.duration_tc }}</td><td>{{ f.unit }}</td>
+    <td><form method="post" action="/tickets/{{ t.so_phieu }}/attach"><input type="hidden" name="file_id" value="{{ f.file_id }}"><button class="ok" type="submit">Nạp file vào phiếu</button></form></td></tr>
+  {% else %}<tr><td colspan="7" class="muted">Chưa có file nào đã kiểm duyệt Đạt và chưa gắn phiếu.</td></tr>{% endfor %}
+  </tbody>
+</table></div>
+{% endif %}
+{% endif %}
+{% endblock %}

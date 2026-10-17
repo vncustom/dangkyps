@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Phiếu phát sóng{% endblock %}
+{% block content %}
+<h1>Bước 3-4 · Phiếu đăng ký phát sóng</h1>
+<div class="row" style="margin-bottom:12px">
+  <a class="btn ok" href="/tickets/new">+ Thêm phiếu</a>
+  <form method="get" class="row" style="margin-left:auto">
+    <input type="text" name="q" value="{{ q }}" placeholder="Số phiếu, AssetForm ID, tên chương trình, file..." style="width:340px">
+    <button type="submit">Tìm</button>{% if q %}<a class="btn secondary" href="/tickets">Bỏ lọc</a>{% endif %}
+  </form>
+</div>
+<div class="table-wrap"><table>
+  <thead><tr><th>Thumbnail</th><th>Số phiếu</th><th>File ID</th><th>Ngày phát sóng</th><th>Kênh</th><th>AssetForm ID</th><th>Tên chương trình</th><th>File phát sóng</th><th>MD5</th><th></th></tr></thead>
+  <tbody>
+  {% for t in tickets %}
+  <tr>
+    <td>{% if t.thumb_path %}<img class="thumb" src="/media/{{ t.file_id }}/thumb" alt="">{% else %}<div class="thumb"></div>{% endif %}</td>
+    <td><b>{{ t.so_phieu }}</b></td><td>{{ t.file_id or '' }}</td><td>{{ t.ngay_phat_song|d }}</td><td>{{ t.kenh }}</td>
+    <td>{{ t.assetform_id }}</td><td>{{ t.ten_chuong_trinh }}</td><td>{{ t.file_name or '' }}</td><td class="mono">{{ t.md5 or '' }}</td>
+    <td class="row"><a class="btn" href="/tickets/{{ t.so_phieu }}">Sửa</a> <a class="btn secondary" href="/print/{{ t.so_phieu }}" target="_blank">In phiếu</a></td>
+  </tr>
+  {% else %}<tr><td colspan="10" class="muted">Chưa có phiếu nào.</td></tr>{% endfor %}
+  </tbody>
+</table></div>
+{% endblock %}

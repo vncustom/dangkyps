@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Đăng ký phát sóng{% endblock %} - HTV</title>
+<link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<header class="top">
+  <span class="logo">HTV</span>
+  <span class="title">Đăng Ký Phát Sóng File 4K</span>
+  {% if user %}
+  <nav>
+    {% set p = request.url.path %}
+    {% if has_role(user, 'ky_thuat') %}<a href="/files" class="{{ 'active' if p.startswith('/files') }}">1. Upload file</a>{% endif %}
+    {% if has_role(user, 'ban_phu_trach', 'bien_tap_vien') %}<a href="/review" class="{{ 'active' if p.startswith('/review') }}">2. Kiểm duyệt</a>{% endif %}
+    {% if has_role(user, 'thu_ky') %}<a href="/tickets" class="{{ 'active' if p.startswith('/tickets') or p.startswith('/print') }}">3-4. Phiếu phát sóng</a>{% endif %}
+    {% if 'admin' in user.roles %}<a href="/admin/users" class="{{ 'active' if p.startswith('/admin/users') }}">Người dùng</a><a href="/admin/settings" class="{{ 'active' if p.startswith('/admin/settings') }}">Storage</a>{% endif %}
+  </nav>
+  <div class="who"><b>{{ user.display_name }}</b>{% if user.ds_ban %} - {{ user.ds_ban }}{% endif %}<br>
+    <a href="/password">Đổi mật khẩu</a> · <a href="/logout">Thoát</a></div>
+  {% endif %}
+</header>
+<main>{% block content %}{% endblock %}</main>
+</body>
+</html>

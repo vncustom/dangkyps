@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Xin chào, {{ user.display_name }}</h1>
+<p class="muted">Vai trò: {% for r in user.roles|sort %}{{ ROLE_LABELS.get(r, r) }}{% if not loop.last %}, {% endif %}{% else %}chưa được gán vai trò chức năng — liên hệ quản trị viên{% endfor %}</p>
+<div class="home-cards">
+  {% if has_role(user, 'ky_thuat') %}<a href="/files"><b>1. Upload file</b>Tạo MD5, lưu CSDL, đưa file lên storage</a>{% endif %}
+  {% if has_role(user, 'ban_phu_trach', 'bien_tap_vien') %}<a href="/review"><b>2. Kiểm duyệt nội dung</b>Xem file và đánh giá Đạt / Không đạt</a>{% endif %}
+  {% if has_role(user, 'thu_ky') %}<a href="/tickets"><b>3-4. Phiếu phát sóng</b>Tạo phiếu, nạp file đã duyệt, in phiếu</a>{% endif %}
+  {% if 'admin' in user.roles %}<a href="/admin/users"><b>Quản trị người dùng</b>Gán vai trò, đặt lại mật khẩu</a><a href="/admin/settings"><b>Cấu hình storage</b>FTP / thư mục lưu file</a>{% endif %}
+</div>
+{% endblock %}

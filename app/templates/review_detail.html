@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% from "_player.html" import render_player %}
+{% block title %}Duyệt file {{ f.file_id }}{% endblock %}
+{% block content %}
+<div class="row"><a class="btn secondary" href="/review">← Danh sách</a><h1 style="margin:0">Kiểm duyệt nội dung · File {{ f.file_id }}</h1></div>
+<div class="review-cols" style="margin-top:14px">
+  <div>{{ render_player(f) }}</div>
+  <div>
+    <div class="panel">
+      <h2 style="margin-top:0">Chi tiết kiểm duyệt</h2>
+      <div class="grid cols-3">
+        <div><label>File ID</label><input type="text" value="{{ f.file_id }}" readonly></div>
+        <div class="span-2"><label>File phát sóng</label><input type="text" value="{{ f.file_name }}" readonly></div>
+        <div class="span-3"><label>MD5</label><input type="text" value="{{ f.md5 }}" readonly></div>
+        <div><label>Đơn vị</label><input type="text" value="{{ f.unit }}" readonly></div>
+        <div><label>Dung lượng / Thời lượng</label><input type="text" value="{{ f.size_bytes|size_mb }} · {{ f.duration_tc }}" readonly></div>
+        <div><label>Kiểm tra kỹ thuật</label><input type="text" value="{{ tech_name }} · {{ f.tech_checked_at|dt }}" readonly></div>
+      </div>
+      <p class="muted">Tổng kết: <span class="badge {{ f.review_state }}">{{ STATE_LABELS[f.review_state] }}</span>
+        (cần cả Ban phụ trách và Biên tập viên cùng Đạt để được lập phiếu)</p>
+      {% if locked %}<div class="alert warn">File đã gắn vào phiếu {{ f.so_phieu }} — không thể đổi kết quả duyệt.</div>{% endif %}
+    </div>
+    {% for kind in ['ban_phu_trach', 'bien_tap_vien'] %}
+    {% set r = reviews[kind] %}
+    <div class="panel">
+      <h2 style="margin-top:0">{{ kind_labels[kind] }}
+        <span class="badge {{ r.result }}">{{ STATE_LABELS[r.result] }}</span></h2>
+      {% if r.reviewed_at %}<p class="muted">Người duyệt: {{ r.reviewer_name }} · {{ r.reviewed_at|dt }}</p>{% endif %}
+      {% if kind in kinds and not locked %}
+      <form method="post" action="/review/{{ f.file_id }}">
+        <input type="hidden" name="kind" value="{{ kind }}">
+        <div class="grid cols-3">
+          <div><label>Đánh giá</label>
+            <select name="result">
+              {% for v in ['chua', 'dat', 'khong_dat'] %}<option value="{{ v }}" {{ 'selected' if r.result == v }}>{{ STATE_LABELS[v] }}</option>{% endfor %}
+            </select></div>
+          <div class="span-2"><label>Nhận xét (bắt buộc khi Không đạt)</label><textarea name="comment" rows="2">{{ r.comment }}</textarea></div>
+        </div>
+        <p><button type="submit">Cập nhật</button></p>
+      </form>
+      {% else %}
+      <p>{{ r.comment or '(không có nhận xét)' }}</p>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
