@@ -10,9 +10,18 @@ from app.web import render
 router = APIRouter()
 
 
+SSO_ERRORS = {
+    "not_configured": "Chưa cấu hình máy chủ SSO. Vui lòng đăng nhập nội bộ hoặc liên hệ quản trị.",
+    "no_token": "Không nhận được thông tin đăng nhập từ HTV SSO. Vui lòng thử lại.",
+    "expired": "Phiên đăng nhập SSO đã hết hạn. Vui lòng thử lại.",
+    "invalid": "Thông tin đăng nhập SSO không hợp lệ.",
+    "no_user": "Tài khoản SSO của bạn chưa được cấp quyền dùng hệ thống này (hoặc đã bị khóa).",
+}
+
+
 @router.get("/login")
-def login_page(request: Request):
-    return render(request, "login.html")
+def login_page(request: Request, sso_error: str = ""):
+    return render(request, "login.html", error=SSO_ERRORS.get(sso_error))
 
 
 @router.post("/login")

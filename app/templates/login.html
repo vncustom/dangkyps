@@ -4,6 +4,8 @@
 <div class="panel login-box">
   <h1>Đăng nhập</h1>
   {% if error %}<div class="alert error">{{ error }}</div>{% endif %}
+  <a href="/login/sso" class="btn sso-btn">&#128274; Đăng nhập bằng HTV SSO</a>
+  <div class="divider"><span>hoặc đăng nhập nội bộ</span></div>
   <form method="post" action="/login">
     <label>Tên đăng nhập</label>
     <input type="text" name="username" value="{{ username or '' }}" autocomplete="username" autofocus required>

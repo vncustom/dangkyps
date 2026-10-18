@@ -6,3 +6,4 @@ itsdangerous
 pyftpdlib
 pytest
 httpx
+PyJWT

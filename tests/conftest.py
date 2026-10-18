@@ -9,6 +9,9 @@ os.environ["DB_PATH"] = str(_TMP / "data" / "dkps.db")
 os.environ["STORAGE_TYPE"] = "local"
 os.environ["SECRET_KEY"] = "test-secret"
 os.environ["FORCE_PASSWORD_CHANGE"] = "0"
+SSO_SECRET = "test-sso-shared-secret-0123456789abcdef"
+os.environ["HTV_SSO_SECRET"] = SSO_SECRET
+os.environ["HTV_SSO_SERVER_URL"] = "http://dashboard.test:8080"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

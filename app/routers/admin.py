@@ -1,5 +1,7 @@
 """Quan tri: gan vai tro, dat lai mat khau, cau hinh storage."""
+import json
 import sqlite3
+from urllib.parse import parse_qsl, urlencode
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
@@ -12,6 +14,7 @@ from app.services.storage import get_storage
 from app.web import render
 
 router = APIRouter(prefix="/admin")
+NO_FILTER_VALUE = "__none__"  # gia tri filter "(chua co ...)"
 admin_only = require_roles()  # chi admin (has_role luon cho phep admin)
 
 STORAGE_KEYS = ["storage_type", "ftp_host", "ftp_port", "ftp_user", "ftp_pass", "ftp_base_dir",
@@ -19,19 +22,39 @@ STORAGE_KEYS = ["storage_type", "ftp_host", "ftp_port", "ftp_user", "ftp_pass", 
 
 
 @router.get("/users")
-def users_page(request: Request, q: str = "", user: dict = Depends(admin_only),
-               conn: sqlite3.Connection = Depends(get_db), msg: str = ""):
-    sql, args = "SELECT * FROM users", []
+def users_page(request: Request, q: str = "", ban: str = "", role: str = "",
+               user: dict = Depends(admin_only), conn: sqlite3.Connection = Depends(get_db), msg: str = ""):
+    where, args = [], []
     if q.strip():
-        sql += " WHERE username LIKE ? OR full_name LIKE ? OR ds_ban LIKE ?"
-        args = [f"%{q.strip()}%"] * 3
-    rows = conn.execute(sql + " ORDER BY ds_ban, username LIMIT 300", args).fetchall()
+        where.append("(username LIKE ? OR full_name LIKE ? OR ds_ban LIKE ?)")
+        args += [f"%{q.strip()}%"] * 3
+    if ban == NO_FILTER_VALUE:
+        where.append("ds_ban = ''")
+    elif ban:
+        where.append("ds_ban = ?")
+        args.append(ban)
+    bpt_marks = ",".join("?" * len(config.BAN_PHU_TRACH_ROLES))
+    bpt_args = sorted(config.BAN_PHU_TRACH_ROLES)
+    if role in config.APP_ROLES:
+        where.append("username IN (SELECT username FROM user_roles WHERE role = ?)")
+        args.append(role)
+    elif role == "ban_phu_trach":
+        where.append(f"ds_vai_tro IN ({bpt_marks})")
+        args += bpt_args
+    elif role == NO_FILTER_VALUE:  # chua co vai tro nao (chuc nang lan ban phu trach)
+        where.append(f"username NOT IN (SELECT username FROM user_roles) AND ds_vai_tro NOT IN ({bpt_marks})")
+        args += bpt_args
+    clause = f" WHERE {' AND '.join(where)}" if where else ""
+    matched = conn.execute(f"SELECT COUNT(*) FROM users{clause}", args).fetchone()[0]
+    rows = conn.execute(f"SELECT * FROM users{clause} ORDER BY ds_ban, username LIMIT 300", args).fetchall()
+    bans = [r[0] for r in conn.execute("SELECT DISTINCT ds_ban FROM users WHERE ds_ban != '' ORDER BY ds_ban")]
     roles: dict[str, set] = {}
     for r in conn.execute("SELECT username, role FROM user_roles"):
         roles.setdefault(r["username"], set()).add(r["role"])
     users = [dict(r, roles=roles.get(r["username"], set()),
                   is_bpt=r["ds_vai_tro"] in config.BAN_PHU_TRACH_ROLES) for r in rows]
     return render(request, "admin_users.html", user, users=users, q=q, app_roles=config.APP_ROLES,
+                  ban=ban, role=role, bans=bans, matched=matched, none_value=NO_FILTER_VALUE,
                   total=conn.execute("SELECT COUNT(*) FROM users").fetchone()[0], msg=msg)
 
 
@@ -48,6 +71,31 @@ async def set_roles(username: str, request: Request, user: dict = Depends(admin_
     conn.executemany("INSERT INTO user_roles(username, role) VALUES (?, ?)",
                      [(username, r) for r in chosen])
     return RedirectResponse(f"/admin/users?q={username}&msg=Đã lưu vai trò cho {username}", status_code=303)
+
+
+@router.post("/users/roles-bulk")
+def set_roles_bulk(changes: str = Form(...), back: str = Form(""), user: dict = Depends(admin_only),
+                   conn: sqlite3.Connection = Depends(get_db)):
+    """Luu vai tro nhieu user mot lan. changes = JSON {username: [role, ...]}; back = query de giu bo loc."""
+    try:
+        data = json.loads(changes)
+        assert isinstance(data, dict) and all(isinstance(v, list) for v in data.values())
+    except (ValueError, AssertionError):
+        raise HTTPException(400, "Dữ liệu không hợp lệ")
+    saved = 0
+    for username, roles in data.items():
+        if not conn.execute("SELECT 1 FROM users WHERE username = ?", (username,)).fetchone():
+            continue
+        chosen = {r for r in roles if r in config.APP_ROLES}
+        if username == user["username"]:
+            chosen.add("admin")  # khong tu go quyen admin cua chinh minh
+        conn.execute("DELETE FROM user_roles WHERE username = ?", (username,))
+        conn.executemany("INSERT INTO user_roles(username, role) VALUES (?, ?)",
+                         [(username, r) for r in chosen])
+        saved += 1
+    params = [(k, v) for k, v in parse_qsl(back) if k in ("q", "ban", "role")]
+    params.append(("msg", f"Đã lưu vai trò cho {saved} người dùng"))
+    return RedirectResponse(f"/admin/users?{urlencode(params)}", status_code=303)
 
 
 @router.post("/users/{username}/reset-password")

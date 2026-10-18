@@ -1,10 +1,25 @@
 {% extends "base.html" %}
 {% block title %}Người dùng{% endblock %}
 {% block content %}
-<h1>Quản trị người dùng <span class="muted">({{ total }} user)</span></h1>
+<h1>Quản trị người dùng <span class="muted">({{ matched }}{% if matched != total %} / {{ total }}{% endif %} user)</span></h1>
 {% if msg %}<div class="alert ok">{{ msg }}</div>{% endif %}
 <div class="row" style="margin-bottom:12px">
-  <form method="get" class="row"><input type="text" name="q" value="{{ q }}" placeholder="Tên đăng nhập, họ tên, ban..." style="width:300px"><button type="submit">Tìm</button></form>
+  <form method="get" class="row">
+    <input type="text" name="q" value="{{ q }}" placeholder="Tên đăng nhập, họ tên, ban..." style="width:300px">
+    <select name="ban" onchange="this.form.submit()" title="Lọc theo Ban / đơn vị" style="width:auto">
+      <option value="">Tất cả ban / đơn vị</option>
+      <option value="{{ none_value }}" {{ 'selected' if ban == none_value }}>(Chưa có ban)</option>
+      {% for b in bans %}<option value="{{ b }}" {{ 'selected' if ban == b }}>{{ b }}</option>{% endfor %}
+    </select>
+    <select name="role" onchange="this.form.submit()" title="Lọc theo vai trò" style="width:auto">
+      <option value="">Tất cả vai trò</option>
+      {% for r in app_roles %}<option value="{{ r }}" {{ 'selected' if role == r }}>{{ ROLE_LABELS[r] }}</option>{% endfor %}
+      <option value="ban_phu_trach" {{ 'selected' if role == 'ban_phu_trach' }}>{{ ROLE_LABELS['ban_phu_trach'] }}</option>
+      <option value="{{ none_value }}" {{ 'selected' if role == none_value }}>(Chưa có vai trò)</option>
+    </select>
+    <button type="submit">Lọc</button>
+    {% if q or ban or role %}<a class="btn secondary" href="/admin/users">Bỏ lọc</a>{% endif %}
+  </form>
   <form method="post" action="/admin/users/import" style="margin-left:auto" onsubmit="return confirm('Nạp lại từ file CSV cấu hình? (user mới nhận mật khẩu mặc định, user cũ chỉ cập nhật thông tin)')"><button class="secondary" type="submit">Nạp lại từ CSV</button></form>
 </div>
 <p class="muted">Ban phụ trách được suy ra tự động từ cột ds_vai_tro trong CSV (truong_ban, pho_ban, truong_phong, pho_phong). Các vai trò dưới đây là vai trò chức năng gán trong app. Hiển thị tối đa 300 user.</p>
@@ -12,7 +27,7 @@
   <thead><tr><th>Tên đăng nhập</th><th>Họ tên</th><th>Ban / đơn vị</th><th>Vai trò CSV</th><th>Vai trò chức năng</th><th></th></tr></thead>
   <tbody>
   {% for u in users %}
-  <tr>
+  <tr data-user="{{ u.username }}">
     <td>{{ u.username }}{% if not u.active %} <span class="badge khong_dat">Khóa</span>{% endif %}</td>
     <td>{{ u.full_name }}</td><td>{{ u.ds_ban }}</td>
     <td>{{ u.ds_vai_tro }}{% if u.is_bpt %} <span class="badge ready">Ban phụ trách</span>{% endif %}</td>
@@ -30,4 +45,47 @@
   {% else %}<tr><td colspan="6" class="muted">Không có user.</td></tr>{% endfor %}
   </tbody>
 </table></div>
+<div class="bulk-bar" id="bulk-bar" hidden>
+  <span><b id="bulk-count">0</b> người dùng có thay đổi vai trò chưa lưu</span>
+  <button type="button" class="secondary" id="bulk-undo">Hoàn tác</button>
+  <button type="button" class="ok" id="bulk-save">Lưu tất cả thay đổi</button>
+</div>
+<form method="post" action="/admin/users/roles-bulk" id="bulk-form" hidden>
+  <input type="hidden" name="changes"><input type="hidden" name="back">
+</form>
+<script>
+(function () {
+  const rows = [...document.querySelectorAll('tr[data-user]')];
+  const bar = document.getElementById('bulk-bar'), count = document.getElementById('bulk-count');
+  const boxes = r => [...r.querySelectorAll('input[name=role]')];
+  const current = r => boxes(r).filter(b => b.checked).map(b => b.value);
+  const key = arr => arr.slice().sort().join(',');
+  rows.forEach(r => r.dataset.initial = key(current(r)));
+  const dirtyRows = () => rows.filter(r => key(current(r)) !== r.dataset.initial);
+  let saving = false;
+
+  function refresh() {
+    const dirty = dirtyRows();
+    rows.forEach(r => r.classList.toggle('dirty', dirty.includes(r)));
+    count.textContent = dirty.length;
+    bar.hidden = dirty.length === 0;
+  }
+  rows.forEach(r => boxes(r).forEach(b => b.addEventListener('change', refresh)));
+
+  document.getElementById('bulk-undo').addEventListener('click', () => {
+    rows.forEach(r => { const init = r.dataset.initial.split(','); boxes(r).forEach(b => b.checked = init.includes(b.value)); });
+    refresh();
+  });
+  document.getElementById('bulk-save').addEventListener('click', () => {
+    const changes = {};
+    dirtyRows().forEach(r => changes[r.dataset.user] = current(r));
+    const back = new URLSearchParams(location.search); back.delete('msg');
+    const f = document.getElementById('bulk-form');
+    f.changes.value = JSON.stringify(changes); f.back.value = back.toString();
+    saving = true; f.submit();
+  });
+  // Tranh mat thay doi chua luu khi bam Loc / Khoa / Dat lai MK / chuyen trang
+  window.addEventListener('beforeunload', e => { if (!saving && dirtyRows().length) { e.preventDefault(); e.returnValue = ''; } });
+})();
+</script>
 {% endblock %}

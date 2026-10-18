@@ -9,7 +9,8 @@ from typing import Optional
 from fastapi import Depends, HTTPException, Request
 
 from app import config
-from app.db import get_db
+from htv_sso_fastapi import is_sso_session, sso_session_valid
+from app.db import db_session, get_db
 
 _N, _R, _P = 2**14, 8, 1
 
@@ -61,12 +62,26 @@ def load_user(conn: sqlite3.Connection, username: str) -> Optional[dict]:
     return user
 
 
+def resolve_sso_user(username: str) -> Optional[str]:
+    """Username trong token SSO -> username local (bang users dung chung). None neu khong co / bi khoa."""
+    with db_session() as conn:
+        for where in ("username = ?", "username = ? COLLATE NOCASE"):  # uu tien khop chinh xac
+            rows = conn.execute(f"SELECT username FROM users WHERE {where} AND active = 1", (username,)).fetchall()
+            if len(rows) == 1:
+                return rows[0]["username"]
+    return None
+
+
 def current_user(request: Request, conn: sqlite3.Connection = Depends(get_db)) -> dict:
     username = request.session.get("u")
     user = load_user(conn, username) if username else None
     if not user:
         raise LoginRequired()
-    if user["must_change_pw"] and request.url.path not in ("/password", "/logout"):
+    if not sso_session_valid(request):  # da dang xuat o Dashboard SSO (SLO)
+        request.session.clear()
+        raise LoginRequired()
+    # Phien SSO khong dung mat khau local nen khong ep doi mat khau
+    if user["must_change_pw"] and not is_sso_session(request) and request.url.path not in ("/password", "/logout"):
         raise LoginRequired(change_password=True)
     return user
 

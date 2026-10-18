@@ -9,9 +9,10 @@ from app import config
 from app.db import db_session, init_db
 from app.routers import admin, auth, files, media_stream, review, tickets
 from app.routers import print as print_router
-from app.security import LoginRequired
+from app.security import LoginRequired, resolve_sso_user
 from app.services.importer import ensure_admins, import_users_csv
 from app.web import render
+from htv_sso_fastapi import init_sso
 
 
 @asynccontextmanager
@@ -36,6 +37,9 @@ class NoCacheStaticFiles(StaticFiles):
 app = FastAPI(title="Đăng ký phát sóng", lifespan=lifespan)
 app.add_middleware(SessionMiddleware, secret_key=config.SECRET_KEY, same_site="lax",
                    max_age=12 * 3600, session_cookie="dkps_session")
+init_sso(app, secret_key=config.HTV_SSO_SECRET, sso_server_url=config.HTV_SSO_SERVER_URL,
+         resolve_user=resolve_sso_user, app_public_url=config.HTV_SSO_APP_URL,
+         verify_slo=config.HTV_SSO_VERIFY_SLO)
 app.mount("/static", NoCacheStaticFiles(directory=str(config.BASE_DIR / "app" / "static")), name="static")
 
 for module in (auth, files, review, tickets, print_router, media_stream, admin):

@@ -38,6 +38,11 @@ FFMPEG_BIN = str(FFMPEG_DIR / "ffmpeg.exe") if (FFMPEG_DIR / "ffmpeg.exe").exist
 FFPROBE_BIN = str(FFMPEG_DIR / "ffprobe.exe") if (FFMPEG_DIR / "ffprobe.exe").exists() else "ffprobe"
 
 USERS_CSV = _path("USERS_CSV", "tailieu chuan bi lam app/Danh sách_user.csv")
+# Dang nhap SSO HTV (htv_sso_fastapi.py). Secret phai GIONG HET Dashboard SSO; de trong => tu choi moi token.
+HTV_SSO_SECRET = os.environ.get("HTV_SSO_SECRET", "")
+HTV_SSO_SERVER_URL = os.environ.get("HTV_SSO_SERVER_URL", "")   # vd http://10.1.1.xxx:8080
+HTV_SSO_APP_URL = os.environ.get("HTV_SSO_APP_URL", "")         # URL app nguoi dung truy cap, vd http://10.1.1.5:8004 (de trong = lay tu Host)
+HTV_SSO_VERIFY_SLO = os.environ.get("HTV_SSO_VERIFY_SLO", "1") == "1"
 DEFAULT_PASSWORD = os.environ.get("DEFAULT_PASSWORD", "14dth@HTV")
 FORCE_PASSWORD_CHANGE = os.environ.get("FORCE_PASSWORD_CHANGE", "0") == "1"
 
