@@ -50,9 +50,9 @@ def test_qc_js_matches_file_and_ffprobe(codec, sample_videos, tmp_path):
     assert info["video"]["progressive"] is True
     assert info["audio"]["codec"] == "aac" and info["audio"]["profile"] == "LC"
     assert info["audio"]["rate"] == int(a["sample_rate"]) and info["audio"]["channels"] == a["channels"]
-    # doi chieu voi spec: mau 320x240 25fps nen resolution/fps FAIL, codec FAIL neu khong phai h264
+    # doi chieu voi spec: mau 320x240 25fps nen resolution/fps FAIL; h264 va hevc deu duoc chap nhan
     assert items["Resolution"]["status"] == "FAIL" and items["Frame rate"]["status"] == "FAIL"
-    assert items["Video compression"]["status"] == ("PASS" if codec == "h264" else "FAIL")
+    assert items["Video compression"]["status"] == "PASS"
     assert items["Audio format"]["status"] == "PASS" and items["Audio sample rate"]["status"] in ("PASS", "FAIL")
     assert items["Frame cadence"]["status"] == "PASS"
     assert items["File MD5"]["actual"] == out["md5"]
@@ -108,3 +108,12 @@ def test_qc_js_rejects_non_mp4(tmp_path):
     proc = subprocess.run([NODE, str(ROOT / "tests" / "js" / "run_qc.js"), str(bad), str(spec)],
                           capture_output=True, text=True, encoding="utf-8")
     assert proc.returncode != 0 and "moov" in proc.stderr
+
+
+def test_qc_js_video_codec_list(sample_videos, tmp_path):
+    _, items = qc(sample_videos["hevc"], tmp_path)
+    assert items["Video compression"]["expected"] == "H.264 / AVC / H.265 / HEVC"
+    _, items = qc(sample_videos["hevc"], tmp_path, video_codecs=["h264"])
+    assert items["Video compression"]["status"] == "FAIL"
+    _, items = qc(sample_videos["hevc"], tmp_path, video_codecs=["h264", "h265"])   # h265 = hevc
+    assert items["Video compression"]["status"] == "PASS"

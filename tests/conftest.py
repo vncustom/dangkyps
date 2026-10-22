@@ -25,12 +25,12 @@ PASSWORD = config.DEFAULT_PASSWORD
 
 TEST_CSV = """username,full_name,ds_ban,ds_phong,ds_to,bac_vtvl,ds_vai_tro,JobTitles,Email,phone
 admin,,,,,,,,,
-tech1,Ky Thuat Mot,Ban A,,,,nhan_vien,,,
-btv1,Bien Tap Mot,Ban A,,,,nhan_vien,,,
-bpA,Truong Ban A,Ban A,,,,truong_ban,,,
-bpB,Truong Ban B,Ban B,,,,truong_ban,,,
-sec1,Thu Ky Mot,Ban A,,,,nhan_vien,,,
-nobody,Khong Vai Tro,Ban A,,,,nhan_vien,,,
+tech1,Ky Thuat Mot,Ban CT,,,,nhan_vien,,,
+btv1,Bien Tap Mot,Ban CT,,,,nhan_vien,,,
+bpA,Truong Ban A,Ban CT,,,,truong_ban,,,
+bpB,Truong Ban B,TT Tin Tức,,,,truong_ban,,,
+sec1,Thu Ky Mot,Ban CT,,,,nhan_vien,,,
+nobody,Khong Vai Tro,Ban CT,,,,nhan_vien,,,
 """
 
 ROLES = {"tech1": "ky_thuat", "btv1": "bien_tap_vien", "sec1": "thu_ky"}

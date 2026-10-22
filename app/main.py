@@ -9,6 +9,7 @@ from app import config
 from app.db import db_session, init_db
 from app.routers import admin, auth, files, media_stream, review, tickets
 from app.routers import print as print_router
+from app.services import upload
 from app.security import LoginRequired, resolve_sso_user
 from app.services.importer import ensure_admins, import_users_csv
 from app.web import render
@@ -22,6 +23,7 @@ async def lifespan(_: FastAPI):
         if conn.execute("SELECT 1 FROM users LIMIT 1").fetchone() is None and config.USERS_CSV.exists():
             import_users_csv(conn)
         ensure_admins(conn)  # moi lan khoi dong: dam bao cac tai khoan trong ADMIN_USERS co quyen admin
+    upload.cleanup_incomplete()  # don file tam cua cac upload bi dut
     yield
 
 

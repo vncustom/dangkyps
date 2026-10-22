@@ -21,7 +21,7 @@ ky_thuat = require_roles("ky_thuat")
 def files_page(request: Request, user: dict = Depends(ky_thuat),
                conn: sqlite3.Connection = Depends(get_db)):
     return render(request, "files.html", user, files=domain.list_files(conn),
-                  units=domain.units(conn), chunk_size=config.UPLOAD_CHUNK_SIZE,
+                  units=config.UNITS,
                   qc_spec=config.QC_SPEC)
 
 
@@ -39,7 +39,9 @@ async def upload_init(request: Request, user: dict = Depends(ky_thuat),
     if size <= 0:
         raise HTTPException(400, "File rỗng")
     if not unit:
-        raise HTTPException(400, "Chưa chọn đơn vị")
+        raise HTTPException(400, "Chưa chọn đơn vị (ban phụ trách duyệt)")
+    if unit not in config.UNITS:
+        raise HTTPException(400, "Đơn vị không hợp lệ")
     if not re.fullmatch(r"[0-9a-fA-F]{32}", md5):
         raise HTTPException(400, "Thiếu MD5 từ bước Check file - hãy bấm Check file trước khi Upload")
     qc_result = qc.get("result") if qc.get("result") in ("PASS", "FAIL") else ""
@@ -48,31 +50,20 @@ async def upload_init(request: Request, user: dict = Depends(ky_thuat),
         raise HTTPException(400, "Báo cáo QC quá lớn")
     upload_id = upload.init_upload(conn, user["username"], name, size, unit, md5,
                                    qc_result, qc_json if qc_result else "")
-    return {"upload_id": upload_id, "chunk_size": config.UPLOAD_CHUNK_SIZE}
+    return {"upload_id": upload_id}
 
 
 @router.put("/api/upload/{upload_id}")
-async def upload_chunk(upload_id: str, offset: int, request: Request,
-                       user: dict = Depends(ky_thuat), conn: sqlite3.Connection = Depends(get_db)):
-    data = await request.body()
+async def upload_file(upload_id: str, request: Request, user: dict = Depends(ky_thuat),
+                      conn: sqlite3.Connection = Depends(get_db)):
+    """Body = nguyen file goc (mot request duy nhat), nhan theo stream."""
     try:
-        received = upload.append_chunk(conn, upload_id, offset, data)
+        received = await upload.receive(conn, upload_id, request.stream())
     except KeyError:
         raise HTTPException(404, "Upload không tồn tại")
     except ValueError as exc:
-        conn.commit()
-        raise HTTPException(409, str(exc))
+        raise HTTPException(400, str(exc))
     return {"received": received}
-
-
-@router.get("/api/upload/{upload_id}")
-def upload_status(upload_id: str, user: dict = Depends(ky_thuat),
-                  conn: sqlite3.Connection = Depends(get_db)):
-    row = conn.execute("SELECT received, size_bytes FROM uploads WHERE upload_id = ?",
-                       (upload_id,)).fetchone()
-    if not row:
-        raise HTTPException(404, "Upload không tồn tại")
-    return {"received": row["received"], "size": row["size_bytes"]}
 
 
 @router.post("/api/upload/{upload_id}/finish")

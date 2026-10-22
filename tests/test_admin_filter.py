@@ -12,8 +12,8 @@ def _get(login, **params):
 
 
 def test_filter_by_ban(login):
-    assert {"tech1", "btv1", "bpA", "sec1", "nobody"} <= _usernames(_get(login, ban="Ban A"))
-    names = _usernames(_get(login, ban="Ban B"))
+    assert {"tech1", "btv1", "bpA", "sec1", "nobody"} <= _usernames(_get(login, ban="Ban CT"))
+    names = _usernames(_get(login, ban="TT Tin Tức"))
     assert names == {"bpB"}
     assert _usernames(_get(login, ban="__none__")) == {"admin"}  # admin khong co ban
 
@@ -27,9 +27,9 @@ def test_filter_by_role(login):
 
 
 def test_filter_combined_and_options(login):
-    html = _get(login, ban="Ban A", role="ban_phu_trach")
+    html = _get(login, ban="Ban CT", role="ban_phu_trach")
     assert _usernames(html) == {"bpA"}
-    assert '<option value="Ban A" selected>' in html and '<option value="Ban B" >' in html
+    assert '<option value="Ban CT" selected>' in html and '<option value="TT Tin Tức" >' in html
 
 
 def _roles(username):

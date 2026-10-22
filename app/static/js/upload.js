@@ -1,4 +1,4 @@
-// Buoc 1: Check file (iCheck: thong so + MD5 file goc, chay trong trinh duyet) -> Upload chunked.
+// Buoc 1: Check file (iCheck: thong so + MD5 file goc, chay trong trinh duyet) -> Upload nguyen file mot lan.
 (function () {
   const form = document.getElementById('upload-form');
   if (!form) return;
@@ -19,7 +19,8 @@
 
   function refreshButtons() {
     const files = [...input.files];
-    btn.disabled = !files.length || !files.every((f) => checked.has(key(f)));
+    btn.disabled = !files.length || !unit.value || !files.every((f) => checked.has(key(f)));
+    btn.title = unit.value ? '' : 'Chọn đơn vị (ban phụ trách duyệt) trước khi Upload';
     checkBtn.disabled = !files.length;
   }
 
@@ -71,6 +72,7 @@
 
   input.addEventListener('change', () => { results.innerHTML = ''; refreshButtons(); });
   input.addEventListener('input', refreshButtons);
+  unit.addEventListener('change', refreshButtons);
 
   checkBtn.addEventListener('click', async () => {
     checkBtn.disabled = true; btn.disabled = true; input.disabled = true;
@@ -99,21 +101,22 @@
     return r.json();
   }
 
-  async function sendChunk(id, offset, blob) {
-    for (let attempt = 0; attempt < 4; attempt++) {
-      try {
-        return await api(`/api/upload/${id}?offset=${offset}`, { method: 'PUT', body: blob });
-      } catch (e) {
-        if (e.status && e.status < 500 && e.status !== 409) throw e;
-        if (e.status === 409) {  // lech offset: hoi server da nhan bao nhieu
-          const st = await api(`/api/upload/${id}`);
-          if (st.received >= offset + blob.size) return { received: st.received };
-          if (st.received !== offset) throw e;
-        }
-        await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
-      }
-    }
-    throw new Error('Gửi chunk thất bại sau nhiều lần thử');
+  // Gui nguyen file trong mot request (trinh duyet doc thang tu dia, khong nap vao RAM)
+  function putFile(id, file, onProgress) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('PUT', `/api/upload/${id}`);
+      xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(e.loaded, e.total); };
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) return resolve();
+        let msg = xhr.statusText;
+        try { msg = JSON.parse(xhr.responseText).detail || msg; } catch (e) {}
+        reject(new Error(msg));
+      };
+      xhr.onerror = () => reject(new Error('Mất kết nối khi gửi file - hãy Upload lại'));
+      xhr.onabort = () => reject(new Error('Đã hủy gửi file'));
+      xhr.send(file);
+    });
   }
 
   async function uploadOne(file, row) {
@@ -127,14 +130,12 @@
         md5: chk.md5, qc: { result: chk.report.result, items: chk.report.items },
       }),
     });
-    let offset = 0;
-    while (offset < file.size) {
-      const blob = file.slice(offset, Math.min(offset + init.chunk_size, file.size));
-      const res = await sendChunk(init.upload_id, offset, blob);
-      offset = res.received;
-      bar.style.width = (offset / file.size * 100).toFixed(1) + '%';
-      status.textContent = `${fmtMB(offset)} / ${fmtMB(file.size)}`;
-    }
+    const t0 = performance.now();
+    await putFile(init.upload_id, file, (done, total) => {
+      bar.style.width = (done / total * 100).toFixed(1) + '%';
+      const mbps = done / 1048576 / Math.max((performance.now() - t0) / 1000, 0.001);
+      status.textContent = `${fmtMB(done)} / ${fmtMB(total)} (${mbps.toFixed(0)} MB/s)`;
+    });
     status.textContent = 'Đã nhận đủ, đang đối chiếu MD5 và xử lý...';
     const done = await api(`/api/upload/${init.upload_id}/finish`, { method: 'POST' });
     status.textContent = `Xong - File ID ${done.file_id}, MD5 ${done.md5} (khớp MD5 lúc Check)` +
@@ -144,6 +145,7 @@
   form.addEventListener('submit', async (ev) => {
     ev.preventDefault();
     if (btn.disabled) return;
+    if (!unit.value) { alert('Chưa chọn Đơn vị (ban phụ trách duyệt).'); return; }
     const files = [...input.files];
     const bad = files.filter((f) => checked.get(key(f)).report.result === 'FAIL');
     if (bad.length && !confirm(`Có ${bad.length} file KHÔNG ĐẠT một số thông số QC:\n${bad.map((f) => '- ' + f.name).join('\n')}\n\nVẫn Upload?`)) return;

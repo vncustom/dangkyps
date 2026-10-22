@@ -363,6 +363,8 @@
     kbps: (n) => `${Math.round(n / 1000)} kb/s`,
   };
   const CODEC_LABEL = { h264: 'H.264 / AVC', hevc: 'H.265 / HEVC', mpeg4: 'MPEG-4 Visual', av1: 'AV1', vp9: 'VP9' };
+  const CODEC_ALIAS = { h265: 'hevc', avc: 'h264', 'h.264': 'h264', 'h.265': 'hevc' };
+  const normCodec = (c) => { c = String(c).toLowerCase(); return CODEC_ALIAS[c] || c; };
 
   function evaluate(info, meta, md5, spec) {
     const items = [];
@@ -375,7 +377,9 @@
     add('File name', 'Display only', meta.name, 'INFO');
     add('File size', 'Display only', fmt.gib(meta.size), 'INFO');
     add('Container', spec.container, `ISO Base Media (brand ${info.brand || '?'})${info.fragmented ? ', fragmented' : ''}`, info.brand === 'qt  ' ? 'FAIL' : 'PASS');
-    add('Video compression', CODEC_LABEL[spec.video_codec] || spec.video_codec, v ? v.codec : 'Không có video', v ? judge(eq(v.codec, spec.video_codec)) : 'FAIL');
+    const codecs = (spec.video_codecs || [spec.video_codec]).map(normCodec);
+    add('Video compression', codecs.map((c) => CODEC_LABEL[c] || c).join(' / '), v ? v.codec : 'Không có video',
+      v ? judge(codecs.includes(normCodec(v.codec))) : 'FAIL');
     add('Video profile', spec.video_profiles.join(' / '), v ? v.profile || NA : '-',
       v && v.profile ? judge(spec.video_profiles.some((p) => eq(p, v.profile))) : (v ? 'INFO' : 'FAIL'));
     add('Video level', `≥ ${spec.video_level_min.toFixed(1)}`, v && v.level ? v.level.toFixed(1) : NA, v && v.level ? judge(v.level >= spec.video_level_min - 1e-6) : 'INFO');

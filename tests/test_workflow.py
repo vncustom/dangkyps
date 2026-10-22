@@ -1,6 +1,7 @@
 import csv
 import hashlib
 import json
+import os
 import sqlite3
 import time
 
@@ -19,7 +20,7 @@ def md5_upper(path):
 QC_ITEMS = [{"n": 1, "param": "File name", "expected": "Display only", "actual": "x.mp4", "status": "INFO"}]
 
 
-def upload(client, path, unit="Ban A", chunk=50_000):
+def upload(client, path, unit="Ban Chương trình"):
     data = path.read_bytes()
     md5 = hashlib.md5(data).hexdigest().upper()  # nhu buoc Check file tinh tren file goc
     r = client.post("/api/upload/init", json={
@@ -27,9 +28,8 @@ def upload(client, path, unit="Ban A", chunk=50_000):
         "qc": {"result": "PASS", "items": QC_ITEMS}})
     assert r.status_code == 200, r.text
     uid = r.json()["upload_id"]
-    for off in range(0, len(data), chunk):
-        r = client.put(f"/api/upload/{uid}?offset={off}", content=data[off:off + chunk])
-        assert r.status_code == 200, r.text
+    r = client.put(f"/api/upload/{uid}", content=data)   # nguyen file, mot request
+    assert r.status_code == 200 and r.json()["received"] == len(data), r.text
     r = client.post(f"/api/upload/{uid}/finish")
     assert r.status_code == 200, r.text
     return r.json()
@@ -96,7 +96,7 @@ def test_login_and_protection(login):
     anon = login()
     r = anon.get("/files")
     assert r.status_code == 303 and r.headers["location"] == "/login"
-    assert anon.get("/api/upload/xyz").status_code == 401
+    assert anon.put("/api/upload/xyz", content=b"x").status_code == 401
     bad = anon.post("/login", data={"username": "tech1", "password": "sai"})
     assert bad.status_code == 401
     assert login("tech1").get("/").status_code == 200
@@ -106,7 +106,7 @@ def test_role_enforcement(login):
     tech, sec, nobody = login("tech1"), login("sec1"), login("nobody")
     assert tech.get("/tickets").status_code == 403
     assert sec.get("/files").status_code == 403
-    assert sec.post("/api/upload/init", json={"file_name": "a.mp4", "size": 1, "unit": "Ban A"}).status_code == 403
+    assert sec.post("/api/upload/init", json={"file_name": "a.mp4", "size": 1, "unit": "Ban Chương trình"}).status_code == 403
     assert nobody.get("/review").status_code == 403
     assert login("btv1").get("/admin/users").status_code == 403
     assert login("admin").get("/admin/users").status_code == 200
@@ -126,17 +126,80 @@ def test_upload_md5_matches_and_rejects_non_mp4(login, sample_videos):
     assert f["duration_tc"].startswith("00:00:02") and f["storage_path"]
     assert f["proxy_path"] == ""  # mac dinh khong tao proxy, xem truc tiep file goc
     assert (config.LOCAL_STORAGE_DIR / f["storage_path"]).stat().st_size == path.stat().st_size
-    r = tech.post("/api/upload/init", json={"file_name": "x.mxf", "size": 10, "unit": "Ban A", "md5": "0" * 32})
+    r = tech.post("/api/upload/init", json={"file_name": "x.mxf", "size": 10, "unit": "Ban Chương trình", "md5": "0" * 32})
     assert r.status_code == 400
-    # chunk sai offset bi tu choi
-    init = tech.post("/api/upload/init", json={"file_name": "a.mp4", "size": 100, "unit": "Ban A",
-                                               "md5": "0" * 32}).json()
-    assert tech.put(f"/api/upload/{init['upload_id']}?offset=5", content=b"x").status_code == 409
+    # gui thieu / thua byte so voi dung luong khai bao bi tu choi, file tam va dong upload bi xoa
+    for body in (b"x" * 50, b"x" * 150):
+        uid = tech.post("/api/upload/init", json={"file_name": "a.mp4", "size": 100, "unit": "Ban Chương trình",
+                                                  "md5": "0" * 32}).json()["upload_id"]
+        assert tech.put(f"/api/upload/{uid}", content=body).status_code == 400
+        assert not (config.TMP_DIR / f"{uid}.part").exists()
+        assert tech.put(f"/api/upload/{uid}", content=b"x" * 100).status_code == 404
+    # moi upload chi nhan file mot lan
+    uid = tech.post("/api/upload/init", json={"file_name": "a.mp4", "size": 100, "unit": "Ban Chương trình",
+                                              "md5": "0" * 32}).json()["upload_id"]
+    assert tech.put(f"/api/upload/{uid}", content=b"x" * 100).status_code == 200
+    assert tech.put(f"/api/upload/{uid}", content=b"x" * 100).status_code == 400
+
+
+def test_upload_unit_required_and_must_be_in_list(login):
+    tech = login("tech1")
+    base = {"file_name": "a.mp4", "size": 10, "md5": "0" * 32}
+    assert tech.post("/api/upload/init", json=base).status_code == 400                       # chua chon
+    assert tech.post("/api/upload/init", json={**base, "unit": "Ban Linh Tinh"}).status_code == 400
+    assert tech.post("/api/upload/init", json={**base, "unit": config.UNITS[0]}).status_code == 200
+
+
+def test_storage_folder_is_unit_name(login, sample_videos):
+    tech = login("tech1")
+    unit = "Ban Chuyên đề - Khoa giáo"
+    r1, r2 = upload(tech, sample_videos["h264"], unit=unit), upload(tech, sample_videos["h264"], unit=unit)
+    wait_ready(r1["file_id"]); wait_ready(r2["file_id"])
+    with db_session() as conn:
+        p1, p2 = [conn.execute("SELECT storage_path FROM files WHERE file_id = ?", (r["file_id"],)).fetchone()[0]
+                  for r in (r1, r2)]
+    name, folder = sample_videos["h264"].name, "BanChuyendeKhoagiao"          # bo dau, viet lien, bo "-"
+    assert p1 == f"{folder}/{name}" and p2 != p1 and p2.startswith(f"{folder}/")   # trung ten -> them _file_id
+    assert (config.LOCAL_STORAGE_DIR / folder / name).exists()
+    assert (config.LOCAL_STORAGE_DIR / p2).stat().st_size == sample_videos["h264"].stat().st_size
+
+
+def test_large_body_streamed_in_one_request(login, tmp_path):
+    """File lon hon bo dem nhan (RECV_BUFFER): ghi nhieu dot nhung MD5/dung luong van dung."""
+    from app.services import upload as up
+    tech = login("tech1")
+    data = os.urandom(up.RECV_BUFFER * 2 + 12345)
+    md5 = hashlib.md5(data).hexdigest().upper()
+    uid = tech.post("/api/upload/init", json={"file_name": "big.mp4", "size": len(data), "unit": config.UNITS[0],
+                                              "md5": md5}).json()["upload_id"]
+    assert tech.put(f"/api/upload/{uid}", content=data).status_code == 200
+    assert (config.TMP_DIR / f"{uid}.part").read_bytes() == data
+    assert up._md5_states[uid][0].hexdigest().upper() == md5
+
+
+def test_cleanup_incomplete_uploads_on_startup(login):
+    from app.services import upload as up
+    tech = login("tech1")
+    uid = tech.post("/api/upload/init", json={"file_name": "a.mp4", "size": 10, "unit": config.UNITS[0],
+                                              "md5": "0" * 32}).json()["upload_id"]
+    assert (config.TMP_DIR / f"{uid}.part").exists()
+    assert up.cleanup_incomplete() >= 1
+    assert not (config.TMP_DIR / f"{uid}.part").exists()
+    with db_session() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM uploads").fetchone()[0] == 0
+
+
+def test_folder_name_ascii_no_separators():
+    from app.services.upload import folder_name
+    assert folder_name("Trung tâm Phát hình - Tư liệu") == "TrungtamPhathinhTulieu"
+    assert [folder_name(u) for u in config.UNITS[:3]] == ["BanChuongtrinh", "TrungtamTintuc", "BanChuyendeKhoagiao"]
+    assert len({folder_name(u) for u in config.UNITS}) == len(config.UNITS)      # khong dung folder
+    assert all(folder_name(u).isascii() and folder_name(u).isalnum() for u in config.UNITS)
 
 
 def test_upload_requires_md5_from_check(login, sample_videos):
     tech = login("tech1")
-    base = {"file_name": "a.mp4", "size": 10, "unit": "Ban A"}
+    base = {"file_name": "a.mp4", "size": 10, "unit": "Ban Chương trình"}
     assert tech.post("/api/upload/init", json=base).status_code == 400            # thieu md5
     assert tech.post("/api/upload/init", json={**base, "md5": "xyz"}).status_code == 400  # md5 sai dinh dang
 
@@ -149,9 +212,9 @@ def test_md5_stored_is_the_one_from_check_and_mismatch_rejected(login, sample_vi
     with db_session() as conn:
         before = conn.execute("SELECT COUNT(*) FROM files").fetchone()[0]
     wrong = "A" * 32
-    uid = tech.post("/api/upload/init", json={"file_name": path.name, "size": len(data), "unit": "Ban A",
+    uid = tech.post("/api/upload/init", json={"file_name": path.name, "size": len(data), "unit": "Ban Chương trình",
                                               "md5": wrong}).json()["upload_id"]
-    assert tech.put(f"/api/upload/{uid}?offset=0", content=data).status_code == 200
+    assert tech.put(f"/api/upload/{uid}", content=data).status_code == 200
     r = tech.post(f"/api/upload/{uid}/finish")
     assert r.status_code == 422 and "MD5 không khớp" in r.json()["detail"]
     with db_session() as conn:
@@ -160,9 +223,9 @@ def test_md5_stored_is_the_one_from_check_and_mismatch_rejected(login, sample_vi
     assert not (config.TMP_DIR / f"{uid}.part").exists()
     # 2) MD5 dung -> luu dung gia tri tu Check (chu hoa) + ket qua QC
     lower = hashlib.md5(data).hexdigest()  # Check gui chu thuong van duoc chap nhan
-    uid = tech.post("/api/upload/init", json={"file_name": path.name, "size": len(data), "unit": "Ban A",
+    uid = tech.post("/api/upload/init", json={"file_name": path.name, "size": len(data), "unit": "Ban Chương trình",
                                               "md5": lower, "qc": {"result": "FAIL", "items": QC_ITEMS}}).json()["upload_id"]
-    tech.put(f"/api/upload/{uid}?offset=0", content=data)
+    tech.put(f"/api/upload/{uid}", content=data)
     res = tech.post(f"/api/upload/{uid}/finish").json()
     assert res["md5"] == lower.upper()
     with db_session() as conn:
@@ -224,11 +287,11 @@ def test_player_uses_original_unless_proxy_enabled(login, sample_videos):
 
 def test_review_permissions_and_rules(login, sample_videos):
     tech = login("tech1")
-    res = upload(tech, sample_videos["h264"], unit="Ban A")
+    res = upload(tech, sample_videos["h264"], unit="Ban Chương trình")
     fid = res["file_id"]
     wait_ready(fid)
     bpB, bpA, btv = login("bpB"), login("bpA"), login("btv1")
-    # Ban B khong duyet duoc file cua Ban A
+    # TT Tin Tuc khong duyet duoc file cua Ban Chuong trinh
     assert bpB.post(f"/review/{fid}", data={"kind": "ban_phu_trach", "result": "dat"}).status_code == 403
     assert bpB.get(f"/review/{fid}").status_code == 403
     # BTV khong duyet thay Ban phu trach
@@ -272,7 +335,7 @@ def test_ticket_validation_and_autoincrement(login):
 
 
 def test_print_ticket(login, sample_videos):
-    res = upload(login("tech1"), sample_videos["h264"], unit="Ban A")
+    res = upload(login("tech1"), sample_videos["h264"], unit="Ban Chương trình")
     fid = res["file_id"]
     wait_ready(fid)
     approve(fid)
@@ -284,7 +347,7 @@ def test_print_ticket(login, sample_videos):
     assert r.status_code == 200
     body = r.text
     for expected in (f"Số phiếu:</b> {so}", "Ngày phát sóng:</b> 14/10/2026", "Kênh:</b> HTV7",
-                     "CHƯƠNG TRÌNH", "Teaser Ai đúng ai sai", res["md5"], sample_videos["h264"].name,
+                     "Ban Chương trình", "Teaser Ai đúng ai sai", res["md5"], sample_videos["h264"].name,
                      "464277", "Time code in", "Time code out", "Ban phụ trách duyệt:</b> Truong Ban A",
                      "Biên tập viên duyệt:</b> Bien Tap Mot", "Kiểm tra kỹ thuật:</b> Ky Thuat Mot",
                      "Phát lần", "Ngày hoàn chỉnh file", "Đơn vị hậu kỳ", "Phát Hình"):

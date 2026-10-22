@@ -49,13 +49,11 @@ FORCE_PASSWORD_CHANGE = os.environ.get("FORCE_PASSWORD_CHANGE", "0") == "1"
 TICKET_START = int(os.environ.get("TICKET_START", "1"))
 FILE_ID_START = int(os.environ.get("FILE_ID_START", "1"))
 
-UPLOAD_CHUNK_SIZE = 16 * 1024 * 1024
-
 # Yeu cau thong so file (tam thoi) cho nut "Check file" (iCheck) o buoc Ky thuat.
 # Chi mang tinh tham khao: ky thuat xem ket qua roi tu quyet dinh co Upload hay khong.
 QC_SPEC = {
     "container": "MP4 (Base Media)",
-    "video_codec": "h264",          # h264 | hevc
+    "video_codecs": ["h264", "hevc"],   # chap nhan H.264 va H.265/HEVC (h265 = hevc)
     "video_profiles": ["Main", "Main 10", "High"],   # dat khi profile nam trong danh sach
     "video_level_min": 4.0,         # dat khi level >= gia tri nay
     "width": 3840,
@@ -77,17 +75,72 @@ QC_SPEC = {
 # Danh muc
 KENH_SONG = ["HTV7", "HTV9", "HTV1", "HTV2", "HTV3", "HTV4"]
 NGUON_CUNG_CAP = ["HTV", "Sản xuất ngoài"]
-# Ma the loai -> ten day du (hien thi o muc "Don vi" tren phieu in). Chinh sua tai day.
-THE_LOAI = {
-    "CT": "CHƯƠNG TRÌNH",
-    "CD": "CD",
-    "TFS": "TFS",
-    "PT": "PT",
-    "VN": "VN",
-    "TT": "TT",
-    "TTDV": "TTDV",
-    "TS": "TS",
+# Don vi (ban phu trach duyet) chon khi upload file; cung la ten folder tren storage.
+UNITS = [
+    "Ban Chương trình",
+    "Trung tâm Tin tức",
+    "Ban Chuyên đề - Khoa giáo",
+    "Ban Văn nghệ",
+    "Ban Thể dục Thể thao",
+    "Hãng phim Truyền hình TFS",
+    "Trung tâm Phát hình - Tư liệu",
+    "Trung tâm Dịch vụ truyền thông",
+    "Trung tâm Phát triển nội dung số",
+    "Trung tâm HTV Bình Dương",
+    "Trung tâm HTV Bà Rịa",
+    "Văn phòng",
+    "Ban Tổ chức - Đào tạo",
+    "Ban Chiến lược - Đầu tư",
+    "Ban Kế hoạch - Tài chính",
+    "Ban Kỹ thuật công nghệ",
+    "Trung tâm Sản xuất chương trình",
+    "Trung tâm Truyền dẫn Phát sóng",
+    "Công ty TMS",
+    "Trung tâm HTV Côn Đảo",
+]
+# Gia tri cot ds_ban trong CSV user -> ten don vi chinh thuc o UNITS (dung de xac dinh Ban phu trach duoc duyet).
+# Gia tri khong co o day thi so truc tiep (vd da la ten chinh thuc).
+DS_BAN_TO_UNIT = {
+    "Ban CT": "Ban Chương trình",
+    "TT Tin Tức": "Trung tâm Tin tức",
+    "Ban Chuyên Đề Khoa Giáo": "Ban Chuyên đề - Khoa giáo",
+    "Ban Văn Nghệ": "Ban Văn nghệ",
+    "Ban Thể Thao": "Ban Thể dục Thể thao",
+    "TFS": "Hãng phim Truyền hình TFS",
+    "TTPHTL": "Trung tâm Phát hình - Tư liệu",
+    "TTDVTT": "Trung tâm Dịch vụ truyền thông",
+    "Ban PTNDS": "Trung tâm Phát triển nội dung số",
+    "HTV_BD": "Trung tâm HTV Bình Dương",
+    "HTV_BR": "Trung tâm HTV Bà Rịa",
+    "Văn Phòng Đài": "Văn phòng",
+    "TCĐT": "Ban Tổ chức - Đào tạo",
+    "Ban KHTC": "Ban Kế hoạch - Tài chính",
+    "Ban KTCN": "Ban Kỹ thuật công nghệ",
+    "TTSXCT": "Trung tâm Sản xuất chương trình",
+    "TT TDPS": "Trung tâm Truyền dẫn Phát sóng",
+    "TMS": "Công ty TMS",
 }
+# Ma the loai -> don vi so huu (hien thi o muc "Don vi" tren phieu in). LIVE, PT chua gan don vi nen hien ma.
+THE_LOAI = {
+    "PH": "Trung tâm Phát hình - Tư liệu",
+    "CTKL": "Ban Chương trình",
+    "TT": "Ban Thể dục Thể thao",
+    "LIVE": "LIVE",
+    "CD": "Ban Chuyên đề - Khoa giáo",
+    "CT": "Ban Chương trình",
+    "TFS": "Hãng phim Truyền hình TFS",
+    "VN": "Ban Văn nghệ",
+    "QC": "Trung tâm Dịch vụ truyền thông",
+    "TS": "Trung tâm Dịch vụ truyền thông",
+    "KG": "Trung tâm Tin tức",
+    "CN": "Ban Văn nghệ",
+    "PT": "PT",
+}
+
+
+def unit_of_ds_ban(ds_ban: str) -> str:
+    ds_ban = (ds_ban or "").strip()
+    return DS_BAN_TO_UNIT.get(ds_ban, ds_ban)
 # Tai khoan admin cua app (tu dong cap quyen admin moi lan khoi dong, neu user ton tai trong CSV/DB).
 # Co the doi bang bien moi truong ADMIN_USERS=admin,adminxe
 ADMIN_USERS = [u.strip() for u in os.environ.get("ADMIN_USERS", "admin,adminxe").split(",") if u.strip()]

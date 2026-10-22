@@ -1,24 +1,46 @@
-"""Upload chunked: ghep chunk vao file tam, tinh MD5 tang dan; sau do xu ly nen."""
+"""Upload nguyen file mot lan: nhan stream ghi vao file tam, tinh MD5 tren duong di; sau do xu ly nen."""
 import hashlib
 import re
 import sqlite3
 import threading
 import traceback
+import unicodedata
 import uuid
 from pathlib import Path
+
+from starlette.concurrency import run_in_threadpool
 
 from app import config
 from app.db import db_session, get_settings, now_str
 from app.services import media
 from app.services.storage import get_storage
 
-_md5_states: dict[str, "hashlib._Hash"] = {}
+_md5_states: dict[str, tuple["hashlib._Hash", int]] = {}   # upload_id -> (md5 cua file da nhan, so byte)
+RECV_BUFFER = 4 * 1024 * 1024
 _lock = threading.Lock()
 
 
 def safe_name(name: str) -> str:
     name = Path(name.replace("\\", "/")).name
     return re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name).strip() or "file.mp4"
+
+
+def folder_name(unit: str) -> str:
+    """Ten don vi -> ten folder ASCII, viet lien, bo dau tieng Viet va dau '-' (vd BanChuyendeKhoagiao)."""
+    s = unicodedata.normalize("NFD", unit.replace("đ", "d").replace("Đ", "D"))
+    s = "".join(c for c in s if not unicodedata.combining(c))
+    return re.sub(r"[^A-Za-z0-9]", "", s) or "Khac"
+
+
+def storage_path(unit: str, file_name: str, file_id: int, storage) -> str:
+    """Duong dan tren storage: <TenDonViLienKhongDau>/<ten file>. Neu trung ten trong folder thi them _<file_id>."""
+    folder = folder_name(unit)
+    name = safe_name(file_name)
+    remote = f"{folder}/{name}"
+    if storage.exists(remote):
+        stem, dot, ext = name.rpartition(".")
+        remote = f"{folder}/{stem}_{file_id}.{ext}" if dot else f"{folder}/{name}_{file_id}"
+    return remote
 
 
 def tmp_path(upload_id: str) -> Path:
@@ -40,7 +62,7 @@ def init_upload(conn: sqlite3.Connection, username: str, file_name: str, size: i
          md5.upper(), qc_result, qc_json))
     tmp_path(upload_id).write_bytes(b"")
     with _lock:
-        _md5_states[upload_id] = hashlib.md5()
+        _md5_states[upload_id] = (hashlib.md5(), 0)
     return upload_id
 
 
@@ -57,27 +79,61 @@ def _rebuild_md5(upload_id: str, upto: int) -> "hashlib._Hash":
     return h
 
 
-def append_chunk(conn: sqlite3.Connection, upload_id: str, offset: int, data: bytes) -> int:
-    """Ghi chunk tai offset (phai dung bang so byte da nhan). Tra ve so byte da nhan."""
+def _write(f, h, data: bytes) -> None:
+    f.write(data)
+    h.update(data)
+
+
+def _discard(conn: sqlite3.Connection, upload_id: str) -> None:
+    tmp_path(upload_id).unlink(missing_ok=True)
+    with _lock:
+        _md5_states.pop(upload_id, None)
+    conn.execute("DELETE FROM uploads WHERE upload_id = ?", (upload_id,))
+    conn.commit()
+
+
+async def receive(conn: sqlite3.Connection, upload_id: str, stream) -> int:
+    """Nhan nguyen file tu stream (body request) vao file tam, vua ghi vua tinh MD5.
+    Loi giua chung (dut ket noi, sai dung luong...) -> xoa file tam va upload; client phai Init lai."""
     row = conn.execute("SELECT * FROM uploads WHERE upload_id = ?", (upload_id,)).fetchone()
     if not row:
         raise KeyError("upload không tồn tại")
-    if offset != row["received"]:
-        raise ValueError(f"offset sai: server đã nhận {row['received']} byte")
-    if offset + len(data) > row["size_bytes"]:
-        raise ValueError("Dữ liệu vượt quá dung lượng khai báo")
+    if row["received"]:
+        raise ValueError("Upload này đã nhận file rồi")
+    expected = row["size_bytes"]
+    h, total, buf = hashlib.md5(), 0, bytearray()
+    try:
+        with open(tmp_path(upload_id), "wb") as f:
+            async for piece in stream:
+                total += len(piece)
+                if total > expected:
+                    raise ValueError("Dữ liệu vượt quá dung lượng khai báo")
+                buf += piece
+                if len(buf) >= RECV_BUFFER:
+                    await run_in_threadpool(_write, f, h, bytes(buf))
+                    buf.clear()
+            if buf:
+                await run_in_threadpool(_write, f, h, bytes(buf))
+        if total != expected:
+            raise ValueError(f"Chưa nhận đủ file ({total}/{expected} byte)")
+    except BaseException:
+        _discard(conn, upload_id)
+        raise
+    conn.execute("UPDATE uploads SET received = ? WHERE upload_id = ?", (total, upload_id))
+    conn.commit()
     with _lock:
-        h = _md5_states.get(upload_id)
-    if h is None:  # server restart giua chung: tinh lai tu file tam
-        h = _rebuild_md5(upload_id, offset)
-    with open(tmp_path(upload_id), "ab") as f:
-        f.write(data)
-    h.update(data)
-    with _lock:
-        _md5_states[upload_id] = h
-    received = offset + len(data)
-    conn.execute("UPDATE uploads SET received = ? WHERE upload_id = ?", (received, upload_id))
-    return received
+        _md5_states[upload_id] = (h, total)
+    return total
+
+
+def cleanup_incomplete() -> int:
+    """Luc khoi dong: moi upload dang do deu da dut (khong tiep tuc duoc) -> xoa file tam va dong trong bang uploads."""
+    with db_session() as conn:
+        ids = [r[0] for r in conn.execute("SELECT upload_id FROM uploads")]
+        for upload_id in ids:
+            tmp_path(upload_id).unlink(missing_ok=True)
+        conn.execute("DELETE FROM uploads")
+    return len(ids)
 
 
 def finish_upload(conn: sqlite3.Connection, upload_id: str, username: str) -> dict:
@@ -87,8 +143,9 @@ def finish_upload(conn: sqlite3.Connection, upload_id: str, username: str) -> di
     if row["received"] != row["size_bytes"]:
         raise ValueError(f"Chưa nhận đủ file ({row['received']}/{row['size_bytes']} byte)")
     with _lock:
-        h = _md5_states.pop(upload_id, None)
-    received_md5 = (h or _rebuild_md5(upload_id, row["size_bytes"])).hexdigest().upper()
+        state = _md5_states.pop(upload_id, None)
+    h = state[0] if state and state[1] == row["size_bytes"] else _rebuild_md5(upload_id, row["size_bytes"])
+    received_md5 = h.hexdigest().upper()
     path = tmp_path(upload_id)
     if received_md5 != row["md5"]:
         # file bi loi khi truyen, hoac bi thay doi tren may ky thuat sau khi Check
@@ -149,8 +206,11 @@ def process_file(file_id: int, tmp_file: Path, file_name: str) -> None:
         make_proxy = settings.get("create_proxy") == "1"
         if make_proxy:
             media.make_proxy(tmp_file, proxy)
-        remote = f"files/{file_id}/{safe_name(file_name)}"
-        get_storage(settings).put(tmp_file, remote)
+        with db_session() as conn:
+            unit = conn.execute("SELECT unit FROM files WHERE file_id = ?", (file_id,)).fetchone()["unit"]
+        storage = get_storage(settings)
+        remote = storage_path(unit, file_name, file_id, storage)
+        storage.put(tmp_file, remote)
         _set_status(file_id, "ready", "", storage_path=remote,
                     proxy_path=proxy.name if make_proxy else "",
                     thumb_path=thumb.name if thumb_ok else "")

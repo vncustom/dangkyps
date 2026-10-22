@@ -6,16 +6,16 @@
   <form id="upload-form">
     <div class="grid cols-3">
       <div class="span-2"><label>Chọn file .mp4 (HEVC / H.264)</label><input type="file" id="upload-files" accept=".mp4,video/mp4" multiple required></div>
-      <div><label>Đơn vị (ban phụ trách duyệt)</label>
+      <div><label>Đơn vị (ban phụ trách duyệt) <span style="color:#f0546a">*</span></label>
         <select id="upload-unit" required>
-          <option value="">-- chọn đơn vị --</option>
-          {% for u in units %}<option {{ 'selected' if u == user.ds_ban }}>{{ u }}</option>{% endfor %}
+          <option value="" selected>-- chọn đơn vị --</option>
+          {% for u in units %}<option>{{ u }}</option>{% endfor %}
         </select></div>
     </div>
     <p class="row"><button type="button" id="check-btn" class="secondary" disabled>Check file</button>
       <button type="submit" id="upload-btn" disabled>Upload</button>
       <span class="muted">Check file: đọc thông số và tính MD5 trên <b>file gốc</b> ngay tại máy bạn (chưa gửi gì lên server).
-        Xem kết quả rồi mới Upload (cắt chunk {{ (chunk_size / 1048576)|int }} MB; server đối chiếu MD5 khi nhận đủ).</span></p>
+        Xem kết quả rồi mới Upload (gửi nguyên file một lần; server đối chiếu MD5 khi nhận đủ).</span></p>
   </form>
   <div id="qc-results"></div>
   <div id="upload-list"></div>

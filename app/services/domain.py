@@ -45,8 +45,3 @@ def list_files(conn: sqlite3.Connection, unit: str | None = None, where: str = "
 def get_file(conn: sqlite3.Connection, file_id: int) -> dict | None:
     row = conn.execute(FILE_SELECT + " WHERE f.file_id = ?", (file_id,)).fetchone()
     return _decorate(row) if row else None
-
-
-def units(conn: sqlite3.Connection) -> list[str]:
-    return [r[0] for r in conn.execute(
-        "SELECT DISTINCT ds_ban FROM users WHERE ds_ban != '' ORDER BY ds_ban")]

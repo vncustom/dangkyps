@@ -4,6 +4,7 @@ import sqlite3
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
+from app import config
 from app.db import get_db, now_str
 from app.security import has_role, require_roles
 from app.services import domain
@@ -19,7 +20,7 @@ def allowed_kinds(user: dict, f: dict) -> list[str]:
     """Cac vai tro duyet user duoc phep thuc hien tren file f."""
     kinds = []
     is_admin = "admin" in user["roles"]
-    if is_admin or ("ban_phu_trach" in user["roles"] and user["ds_ban"] == f["unit"]):
+    if is_admin or ("ban_phu_trach" in user["roles"] and config.unit_of_ds_ban(user["ds_ban"]) == config.unit_of_ds_ban(f["unit"])):
         kinds.append("ban_phu_trach")
     if is_admin or "bien_tap_vien" in user["roles"]:
         kinds.append("bien_tap_vien")

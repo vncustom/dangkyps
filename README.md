@@ -9,7 +9,9 @@ Web FastAPI + SQLite cho Đài truyền hình, quy trình:
 
 ## Chạy
 
-Cách nhanh nhất: bấm đúp **`run.bat`** (hoặc `run.bat 8080` để đổi cổng). Mặc định chạy tại **http://localhost:8004**.
+Cài trên máy mới: chép source rồi bấm đúp **`setup.bat`** (tự cài Python, thư viện, ffmpeg, `.env`, mở firewall, đặt app tự chạy khi bật máy) – xem `docs/van hanh.md`.
+
+Chạy tay: bấm đúp **`run.bat`** (hoặc `run.bat 8080` để đổi cổng). Mặc định chạy tại **http://localhost:8004**.
 Nếu chưa có `.venv`, `run.bat` tự tạo và cài thư viện (cần Python 3.11+ và mạng). Dừng app bằng Ctrl+C.
 
 Chạy tay tương đương:
@@ -42,6 +44,8 @@ Lưu ý khi triển khai:
 - Chỉ chạy **một worker** uvicorn (trạng thái MD5 của upload đang dở nằm trong bộ nhớ).
 - `scripts\dev_ftp.py` chỉ để thử nghiệm; production trỏ **Storage** (admin) tới FTP thật của đài.
 
+Hướng dẫn triển khai lên server chính thức, xóa dữ liệu test, backup và xử lý sự cố: xem [`docs/van hanh.md`](docs/van%20hanh.md).
+
 ## Cấu hình (`.env`, tất cả tùy chọn)
 
 | Biến | Mặc định | Ý nghĩa |
@@ -61,7 +65,7 @@ Lưu ý khi triển khai:
   Admin thấy tất cả, gán vai trò ở trang **Người dùng**, đặt lại mật khẩu, cấu hình **Storage**.
   Vì cấp lại khi khởi động nên bỏ tick admin của các tài khoản này trên giao diện chỉ có tác dụng đến lần restart sau; muốn bỏ hẳn thì sửa `ADMIN_USERS`.
 - **Vai trò chức năng gán trong app** (trang Người dùng): `ky_thuat` (upload), `bien_tap_vien` (duyệt), `thu_ky` (phiếu + in).
-- **Ban phụ trách** suy ra từ cột `ds_vai_tro` của CSV (`truong_ban`, `pho_ban`, `truong_phong`, `pho_phong`); chỉ duyệt file thuộc đơn vị (`ds_ban`) của mình.
+- **Ban phụ trách** suy ra từ cột `ds_vai_tro` của CSV (`truong_ban`, `pho_ban`, `truong_phong`, `pho_phong`); chỉ duyệt file thuộc đơn vị của mình (`ds_ban` được quy đổi sang tên đơn vị chính thức qua `DS_BAN_TO_UNIT` trong `app/config.py`).
 - File được lập phiếu khi **cả** Ban phụ trách và Biên tập viên đánh giá Đạt; mỗi file chỉ gắn vào một phiếu.
 
 ## Check file (iCheck) và MD5
@@ -77,7 +81,7 @@ Yêu cầu thông số HTV (tạm thời) nằm ở `QC_SPEC` trong `app/config.
 
 | Mục | Điều kiện đạt hiện tại |
 |---|---|
-| Video compression | `h264` (đổi `video_codec` thành `hevc` nếu muốn nhận HEVC) |
+| Video compression | `h264` hoặc `hevc`/`h265` (danh sách `video_codecs` trong `QC_SPEC`) |
 | Video profile | Main, Main 10 hoặc High (`video_profiles`) |
 | Video level | ≥ 4.0 (`video_level_min`) |
 | Resolution / Aspect / Frame rate | 3840 × 2160 / 16:9 / 50 fps, cadence constant |
@@ -92,14 +96,16 @@ Code: `app/static/js/qc-core.js`, `md5.js`, `qc-worker.js`. DB cũ tự được
 ## Storage và player
 
 Cấu hình ở **Storage** (admin): FTP hoặc thư mục cục bộ. Thêm backend mới = viết lớp kế thừa `StorageBackend` trong `app/services/storage.py`.
-Upload cắt chunk 16 MB; file được staging ở `data/tmp` cho đến khi ffprobe/thumbnail xong và đã đẩy lên storage (ổ cần trống ≥ 1 file).
+Upload gửi nguyên file một lần (không chia chunk; mất kết nối thì upload lại từ đầu), server vừa nhận vừa tính MD5 để đối chiếu với MD5 lúc Check; file được staging ở `data/tmp` cho đến khi ffprobe/thumbnail xong và đã đẩy lên storage (ổ cần trống ≥ 1 file).
 
 Player duyệt **xem trực tiếp file gốc** từ storage (HTTP Range, có -1/+1 frame, timecode, thanh kéo theo frame). HEVC 4K cần trình duyệt giải mã được (thường cần giải mã phần cứng).
 Nếu máy xem bị giật hoặc không phát được, bật **Tạo thêm bản proxy** ở trang Storage (hoặc `CREATE_PROXY=1`) — file upload sau đó có thêm bản H.264 720p và player ưu tiên bản này.
 
 ## Tên đầy đủ của Thể loại
 
-Mục "Đơn vị" trên phiếu in lấy từ `THE_LOAI` trong `app/config.py` (hiện chỉ `CT` = CHƯƠNG TRÌNH; các mã khác đang để nguyên mã — hãy điền tên đầy đủ).
+Mục "Đơn vị" trên phiếu in lấy từ `THE_LOAI` trong `app/config.py` (mã thể loại → tên đơn vị sở hữu; `LIVE`, `PT` chưa gán đơn vị nên hiện mã).
+
+Đơn vị (ban phụ trách duyệt) là trường **bắt buộc** khi Upload, chọn từ danh sách `UNITS` trong `app/config.py`. File được lưu trên storage trong folder theo tên đơn vị: `<ftp_base_dir>/<TenDonViKhongDau>/<tên file>` (tên folder bỏ dấu tiếng Việt, viết liền, bỏ dấu `-`, ví dụ `BanChuyendeKhoagiao`) (trùng tên trong cùng folder thì thêm hậu tố `_<file_id>`). File đã upload trước đây vẫn nằm ở `files/<file_id>/...`.
 
 ## Test
 
