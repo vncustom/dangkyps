@@ -1,8 +1,9 @@
 import sqlite3
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
+from app import config
 from app.db import get_db
 from app.security import current_user, hash_password, verify_password
 from app.web import render
@@ -34,7 +35,8 @@ def login(request: Request, username: str = Form(...), password: str = Form(...)
                       username=username)
     request.session.clear()
     request.session["u"] = row["username"]
-    return RedirectResponse("/password" if row["must_change_pw"] else "/", status_code=303)
+    force = config.ALLOW_PASSWORD_CHANGE and row["must_change_pw"]
+    return RedirectResponse("/password" if force else "/", status_code=303)
 
 
 @router.get("/logout")
@@ -50,6 +52,8 @@ def home(request: Request, user: dict = Depends(current_user)):
 
 @router.get("/password")
 def password_page(request: Request, user: dict = Depends(current_user)):
+    if not config.ALLOW_PASSWORD_CHANGE:
+        return RedirectResponse("/", status_code=303)
     return render(request, "password.html", user)
 
 
@@ -57,6 +61,8 @@ def password_page(request: Request, user: dict = Depends(current_user)):
 def change_password(request: Request, old_password: str = Form(...), new_password: str = Form(...),
                     confirm_password: str = Form(...), user: dict = Depends(current_user),
                     conn: sqlite3.Connection = Depends(get_db)):
+    if not config.ALLOW_PASSWORD_CHANGE:
+        raise HTTPException(403, "Chức năng đổi mật khẩu đã tắt - liên hệ quản trị viên để đặt lại mật khẩu")
     error = None
     if not verify_password(old_password, user["pw_hash"]):
         error = "Mật khẩu hiện tại không đúng"

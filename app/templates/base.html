@@ -8,7 +8,7 @@
 </head>
 <body>
 <header class="top">
-  <span class="logo">HTV</span>
+  <a href="/" class="logo"><img src="{{ asset('img/logo.png') }}" alt="HTV"></a>
   <span class="title">Đăng Ký Phát Sóng File 4K</span>
   {% if user %}
   <nav>
@@ -19,7 +19,7 @@
     {% if 'admin' in user.roles %}<a href="/admin/users" class="{{ 'active' if p.startswith('/admin/users') }}">Người dùng</a><a href="/admin/settings" class="{{ 'active' if p.startswith('/admin/settings') }}">Storage</a>{% endif %}
   </nav>
   <div class="who"><b>{{ user.display_name }}</b>{% if user.ds_ban %} - {{ user.ds_ban }}{% endif %}<br>
-    <a href="/password">Đổi mật khẩu</a> · <a href="/logout">Thoát</a></div>
+    {% if password_change_enabled() %}<a href="/password">Đổi mật khẩu</a> · {% endif %}<a href="/logout">Thoát</a></div>
   {% endif %}
 </header>
 <main>{% block content %}{% endblock %}</main>

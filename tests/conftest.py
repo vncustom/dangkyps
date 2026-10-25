@@ -9,6 +9,7 @@ os.environ["DB_PATH"] = str(_TMP / "data" / "dkps.db")
 os.environ["STORAGE_TYPE"] = "local"
 os.environ["SECRET_KEY"] = "test-secret"
 os.environ["FORCE_PASSWORD_CHANGE"] = "0"
+os.environ["ALLOW_PASSWORD_CHANGE"] = "1"   # test chuc nang doi mat khau; test rieng kiem tra truong hop tat
 SSO_SECRET = "test-sso-shared-secret-0123456789abcdef"
 os.environ["HTV_SSO_SECRET"] = SSO_SECRET
 os.environ["HTV_SSO_SERVER_URL"] = "http://dashboard.test:8080"

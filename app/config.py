@@ -45,6 +45,9 @@ HTV_SSO_APP_URL = os.environ.get("HTV_SSO_APP_URL", "")         # URL app nguoi 
 HTV_SSO_VERIFY_SLO = os.environ.get("HTV_SSO_VERIFY_SLO", "1") == "1"
 DEFAULT_PASSWORD = os.environ.get("DEFAULT_PASSWORD", "14dth@HTV")
 FORCE_PASSWORD_CHANGE = os.environ.get("FORCE_PASSWORD_CHANGE", "0") == "1"
+# Cho nguoi dung tu doi mat khau (trang /password). Mac dinh TAT: chi admin dat lai mat khau o trang Nguoi dung.
+# Khi tat, FORCE_PASSWORD_CHANGE khong co tac dung.
+ALLOW_PASSWORD_CHANGE = os.environ.get("ALLOW_PASSWORD_CHANGE", "0") == "1"
 
 TICKET_START = int(os.environ.get("TICKET_START", "1"))
 FILE_ID_START = int(os.environ.get("FILE_ID_START", "1"))
@@ -73,7 +76,7 @@ QC_SPEC = {
 }
 
 # Danh muc
-KENH_SONG = ["HTV7", "HTV9", "HTV1", "HTV2", "HTV3", "HTV4"]
+KENH_SONG = ["HTV7", "HTV9", "HTV1", "HTV2", "HTV3", "HTV4", "HTV Thể Thao"]
 NGUON_CUNG_CAP = ["HTV", "Sản xuất ngoài"]
 # Don vi (ban phu trach duyet) chon khi upload file; cung la ten folder tren storage.
 UNITS = [

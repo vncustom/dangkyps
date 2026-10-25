@@ -122,7 +122,6 @@ echo   Dia chi app:  http://localhost:%PORT%
 for /f "tokens=2 delims=: " %%a in ('ipconfig ^| findstr /c:"IPv4"') do echo   Tu may khac:  http://%%a:%PORT%
 echo.
 echo   Viec con lai ^(lam tren web, dang nhap admin^):
-echo     - Doi mat khau admin
 echo     - Trang Storage: nhap FTP that, bam Kiem tra ket noi, bam Luu
 echo     - Trang Nguoi dung: gan vai tro ky_thuat / bien_tap_vien / thu_ky
 echo   Chi tiet: docs\van hanh.md

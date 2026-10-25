@@ -81,7 +81,7 @@ def current_user(request: Request, conn: sqlite3.Connection = Depends(get_db)) -
         request.session.clear()
         raise LoginRequired()
     # Phien SSO khong dung mat khau local nen khong ep doi mat khau
-    if user["must_change_pw"] and not is_sso_session(request) and request.url.path not in ("/password", "/logout"):
+    if config.ALLOW_PASSWORD_CHANGE and user["must_change_pw"] and not is_sso_session(request) and request.url.path not in ("/password", "/logout"):
         raise LoginRequired(change_password=True)
     return user
 

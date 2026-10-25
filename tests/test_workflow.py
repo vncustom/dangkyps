@@ -372,6 +372,39 @@ def test_password_change_and_admin_roles(login):
     assert make_client("nobody").get("/").status_code == 200
 
 
+def test_password_change_disabled_by_default_setting(login, monkeypatch):
+    """ALLOW_PASSWORD_CHANGE tat: an link, vo hieu trang /password, khong ep doi mat khau."""
+    monkeypatch.setattr(config, "ALLOW_PASSWORD_CHANGE", False)
+    c = login("nobody")
+    assert "/password" not in c.get("/").text
+    r = c.get("/password")
+    assert r.status_code == 303 and r.headers["location"] == "/"
+    assert c.post("/password", data={"old_password": PASSWORD, "new_password": "matkhau-moi1",
+                                     "confirm_password": "matkhau-moi1"}).status_code == 403
+    assert make_client("nobody").get("/").status_code == 200          # mat khau cu van dung
+    with db_session() as conn:   # must_change_pw khong con ep nguoi dung vao trang doi mat khau
+        conn.execute("UPDATE users SET must_change_pw = 1 WHERE username = 'nobody'")
+    try:
+        r = make_client().post("/login", data={"username": "nobody", "password": PASSWORD})
+        assert r.headers["location"] == "/"
+        assert make_client("nobody").get("/").status_code == 200
+    finally:
+        with db_session() as conn:
+            conn.execute("UPDATE users SET must_change_pw = 0 WHERE username = 'nobody'")
+    monkeypatch.setattr(config, "ALLOW_PASSWORD_CHANGE", True)
+    assert "/password" in login("nobody").get("/").text
+
+
+def test_header_uses_logo_image_and_new_channel(login):
+    c = login("sec1")
+    html = c.get("/").text
+    assert 'class="logo"' in html and "/static/img/logo.png" in html and ">HTV</span>" not in html
+    assert c.get("/static/img/logo.png").status_code == 200
+    assert "HTV Thể Thao" in config.KENH_SONG
+    assert "HTV Thể Thao" in c.get("/tickets/new").text
+    assert new_ticket(c, kenh="HTV Thể Thao").status_code == 303
+
+
 def test_static_assets_are_versioned_and_not_cached(login):
     tech = login("tech1")
     page = tech.get("/files").text

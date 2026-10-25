@@ -51,6 +51,7 @@ def asset(path: str, *also: str) -> str:
 templates.env.filters.update(dt=_dt, d=_d, size_mb=_size_mb)
 templates.env.globals.update(
     has_role=has_role, STATE_LABELS=STATE_LABELS, ROLE_LABELS=config.ROLE_LABELS, asset=asset,
+    password_change_enabled=lambda: config.ALLOW_PASSWORD_CHANGE,
 )
 
 

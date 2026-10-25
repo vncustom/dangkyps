@@ -99,7 +99,8 @@ Các giá trị **bắt buộc đổi** so với máy dev:
 |---|---|
 | `SECRET_KEY` | Chuỗi ngẫu nhiên dài, giữ bí mật. Tạo bằng: `.\.venv\Scripts\python -c "import secrets; print(secrets.token_urlsafe(48))"`. Đổi key sẽ làm mọi người phải đăng nhập lại |
 | `DEFAULT_PASSWORD` | Mật khẩu mặc định khi nạp CSV / admin đặt lại mật khẩu. Nên đổi khỏi giá trị mặc định |
-| `FORCE_PASSWORD_CHANGE` | `1` = bắt đổi mật khẩu ở lần đăng nhập đầu của mỗi user |
+| `ALLOW_PASSWORD_CHANGE` | Mặc định `0`: người dùng **không** tự đổi được mật khẩu (ẩn link, vô hiệu trang đổi), chỉ admin đặt lại ở trang Người dùng. `1` = cho phép tự đổi |
+| `FORCE_PASSWORD_CHANGE` | `1` = bắt đổi mật khẩu ở lần đăng nhập đầu của mỗi user (chỉ có tác dụng khi `ALLOW_PASSWORD_CHANGE=1`) |
 | `ADMIN_USERS` | Danh sách tài khoản admin (phân cách dấu phẩy), phải có trong CSV |
 | `STORAGE_TYPE=ftp`, `FTP_HOST`, `FTP_PORT`, `FTP_USER`, `FTP_PASS`, `FTP_BASE_DIR` | Trỏ tới **FTP thật** của đài (không dùng `scripts\dev_ftp.py`) |
 | `HTV_SSO_SECRET`, `HTV_SSO_SERVER_URL`, `HTV_SSO_APP_URL`, `HTV_SSO_VERIFY_SLO` | Nếu dùng đăng nhập SSO HTV: secret phải **giống hệt** Dashboard SSO. Để trống secret = từ chối mọi token SSO (chỉ đăng nhập bằng user/mật khẩu) |
@@ -166,7 +167,7 @@ Mở `http://<IP-server>:8004` từ máy khác để chắc chắn firewall đã
 
 Checklist lần đầu (đăng nhập bằng tài khoản admin):
 
-- [ ] **Đổi mật khẩu** các tài khoản admin (nếu còn mật khẩu mặc định).
+- [ ] Mật khẩu: người dùng không tự đổi được (`ALLOW_PASSWORD_CHANGE=0`). Nếu muốn các tài khoản admin có mật khẩu riêng thì đặt `DEFAULT_PASSWORD` khác mặc định **trước khi nạp user lần đầu**, hoặc tạm bật `ALLOW_PASSWORD_CHANGE=1` để admin tự đổi rồi tắt lại.
 - [ ] Trang **Storage** → nhập thông tin FTP thật → **Kiểm tra kết nối** → **Lưu**.
 - [ ] Trang **Người dùng** → gán vai trò chức năng: `ky_thuat` (upload), `bien_tap_vien` (duyệt), `thu_ky` (phiếu + in). Có thể lọc theo Ban / vai trò.
 - [ ] Kiểm tra **Ban phụ trách** thấy đúng file của đơn vị mình (quy đổi `ds_ban` → đơn vị ở `DS_BAN_TO_UNIT` trong `app\config.py`; user thuộc `Ban TGĐ`, `Phat_Thanh`, `Test` chưa có đơn vị tương ứng nên không duyệt được file của đơn vị nào).

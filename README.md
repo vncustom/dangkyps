@@ -53,7 +53,8 @@ Hướng dẫn triển khai lên server chính thức, xóa dữ liệu test, ba
 | `SECRET_KEY` | `dev-secret-change-me` | Khóa ký phiên đăng nhập — **phải đổi** khi chạy thật |
 | `ADMIN_USERS` | `admin,adminxe` | Tài khoản admin của app (xem Phân quyền) |
 | `DEFAULT_PASSWORD` | `14dth@HTV` | Mật khẩu mặc định khi nạp CSV / đặt lại mật khẩu |
-| `FORCE_PASSWORD_CHANGE` | `0` | `1` = bắt đổi mật khẩu ở lần đăng nhập đầu |
+| `ALLOW_PASSWORD_CHANGE` | `0` | `1` = cho người dùng tự đổi mật khẩu (hiện link "Đổi mật khẩu"). Mặc định tắt: chỉ admin đặt lại mật khẩu ở trang Người dùng |
+| `FORCE_PASSWORD_CHANGE` | `0` | `1` = bắt đổi mật khẩu ở lần đăng nhập đầu (chỉ có tác dụng khi `ALLOW_PASSWORD_CHANGE=1`) |
 | `USERS_CSV`, `DB_PATH`, `FFMPEG_DIR` | xem `.env.example` | Đường dẫn file CSV user, SQLite, ffmpeg |
 | `STORAGE_TYPE`, `FTP_*` | `ftp`, `127.0.0.1:2121` | Giá trị khởi tạo của cấu hình storage (sửa sau ở trang **Storage**) |
 | `CREATE_PROXY` | `0` | `1` = tạo thêm bản proxy H.264 720p khi upload |

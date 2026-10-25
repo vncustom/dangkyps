@@ -8,7 +8,9 @@ body { margin: 0; font-family: "Segoe UI", Roboto, Arial, sans-serif; background
 a { color: #8ab4ff; text-decoration: none; }
 a:hover { text-decoration: underline; }
 header.top { display: flex; align-items: center; gap: 20px; padding: 10px 24px; background: #12163a; border-bottom: 2px solid var(--accent); flex-wrap: wrap; }
-.logo { font-weight: 800; font-size: 22px; letter-spacing: 1px; color: #fff; background: linear-gradient(90deg,#e11d2e,#1f6feb); padding: 2px 10px; border-radius: 4px; font-style: italic; }
+.logo { display: inline-flex; align-items: center; }
+.logo:hover { text-decoration: none; }
+.logo img { height: 38px; width: auto; display: block; }
 .title { font-size: 17px; font-weight: 600; border-left: 2px solid var(--muted); padding-left: 14px; }
 nav { display: flex; gap: 6px; flex: 1; flex-wrap: wrap; }
 nav a { padding: 6px 12px; border-radius: 4px; color: var(--text); }
