@@ -29,9 +29,10 @@ SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-change-me")
 DB_PATH = _path("DB_PATH", "data/dkps.db")
 DATA_DIR = DB_PATH.parent
 TMP_DIR = DATA_DIR / "tmp"
-PROXY_DIR = DATA_DIR / "proxy"
-THUMB_DIR = DATA_DIR / "thumbs"
 LOCAL_STORAGE_DIR = DATA_DIR / "storage"
+# Folder rieng tren storage (cung cap voi cac folder don vi) chua thumbnail va proxy
+THUMB_FOLDER = "thumbs"
+PROXY_FOLDER = "proxy"
 
 FFMPEG_DIR = _path("FFMPEG_DIR", "ffmpeg")
 FFMPEG_BIN = str(FFMPEG_DIR / "ffmpeg.exe") if (FFMPEG_DIR / "ffmpeg.exe").exists() else "ffmpeg"
@@ -167,6 +168,6 @@ STORAGE_DEFAULTS = {
     "ftp_user": os.environ.get("FTP_USER", "dkps"),
     "ftp_pass": os.environ.get("FTP_PASS", "dkps"),
     "ftp_base_dir": os.environ.get("FTP_BASE_DIR", "/dkps"),
-    # "1" = tao them ban proxy H.264 720p de duyet; "0" = xem truc tiep file goc tu storage
-    "create_proxy": os.environ.get("CREATE_PROXY", "0"),
+    # "1" = tao ban proxy H.264 720p de duyet (player xem proxy cho nhe bang thong); "0" = xem truc tiep file goc
+    "create_proxy": os.environ.get("CREATE_PROXY", "1"),
 }

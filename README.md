@@ -57,7 +57,7 @@ Hướng dẫn triển khai lên server chính thức, xóa dữ liệu test, ba
 | `FORCE_PASSWORD_CHANGE` | `0` | `1` = bắt đổi mật khẩu ở lần đăng nhập đầu (chỉ có tác dụng khi `ALLOW_PASSWORD_CHANGE=1`) |
 | `USERS_CSV`, `DB_PATH`, `FFMPEG_DIR` | xem `.env.example` | Đường dẫn file CSV user, SQLite, ffmpeg |
 | `STORAGE_TYPE`, `FTP_*` | `ftp`, `127.0.0.1:2121` | Giá trị khởi tạo của cấu hình storage (sửa sau ở trang **Storage**) |
-| `CREATE_PROXY` | `0` | `1` = tạo thêm bản proxy H.264 720p khi upload |
+| `CREATE_PROXY` | `1` | `1` = tạo bản proxy H.264 720p khi upload (player duyệt xem bản này); `0` = xem trực tiếp file gốc |
 | `TICKET_START`, `FILE_ID_START` | `1` | Số phiếu / File ID bắt đầu (chỉ áp dụng khi bảng còn trống) |
 
 ## Phân quyền
@@ -99,8 +99,9 @@ Code: `app/static/js/qc-core.js`, `md5.js`, `qc-worker.js`. DB cũ tự được
 Cấu hình ở **Storage** (admin): FTP hoặc thư mục cục bộ. Thêm backend mới = viết lớp kế thừa `StorageBackend` trong `app/services/storage.py`.
 Upload gửi nguyên file một lần (không chia chunk; mất kết nối thì upload lại từ đầu), server vừa nhận vừa tính MD5 để đối chiếu với MD5 lúc Check; file được staging ở `data/tmp` cho đến khi ffprobe/thumbnail xong và đã đẩy lên storage (ổ cần trống ≥ 1 file).
 
-Player duyệt **xem trực tiếp file gốc** từ storage (HTTP Range, có -1/+1 frame, timecode, thanh kéo theo frame). HEVC 4K cần trình duyệt giải mã được (thường cần giải mã phần cứng).
-Nếu máy xem bị giật hoặc không phát được, bật **Tạo thêm bản proxy** ở trang Storage (hoặc `CREATE_PROXY=1`) — file upload sau đó có thêm bản H.264 720p và player ưu tiên bản này.
+Thumbnail và proxy cũng nằm **trên storage**, mỗi loại một folder riêng cạnh các folder đơn vị: `thumbs/<file_id>.jpg` và `proxy/<tên file>_proxy.mp4`. Khi nạp file vào phiếu, proxy được đổi tên thành `proxy/<AssetFormID>_<tên file>_proxy.mp4` (bỏ file ra khỏi phiếu hoặc sửa AssetForm ID thì tên đổi theo).
+
+Player duyệt **xem bản proxy** H.264 720p (HTTP Range, có -1/+1 frame, timecode, thanh kéo theo frame) để nhẹ băng thông; chỉ khi file không có proxy (tắt `CREATE_PROXY` hoặc file cũ) hoặc proxy lỗi mới xem file gốc.
 
 ## Tên đầy đủ của Thể loại
 

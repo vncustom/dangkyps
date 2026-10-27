@@ -13,6 +13,7 @@ from starlette.concurrency import run_in_threadpool
 from app import config
 from app.db import db_session, get_settings, now_str
 from app.services import media
+from app.services import proxy as proxy_svc
 from app.services.storage import get_storage
 
 _md5_states: dict[str, tuple["hashlib._Hash", int]] = {}   # upload_id -> (md5 cua file da nhan, so byte)
@@ -192,29 +193,33 @@ def _set_status(file_id: int, status: str, msg: str = "", **cols) -> None:
 
 
 def process_file(file_id: int, tmp_file: Path, file_name: str) -> None:
-    """Thumbnail -> (proxy, neu bat) -> day file goc len storage -> xoa file tam."""
+    """Thumbnail (thumbs/) -> proxy (proxy/, neu bat) -> day file goc len folder don vi -> xoa file tam."""
+    tmp_thumb = config.TMP_DIR / f"{file_id}_thumb.jpg"
+    tmp_proxy = config.TMP_DIR / f"{file_id}{proxy_svc.SUFFIX}"
     try:
         with db_session() as conn:
             settings = get_settings(conn)
-        thumb = config.THUMB_DIR / f"{file_id}.jpg"
-        proxy = config.PROXY_DIR / f"{file_id}.mp4"
-        thumb_ok = True
-        try:
-            media.make_thumbnail(tmp_file, thumb)
-        except Exception:
-            thumb_ok = False
-        make_proxy = settings.get("create_proxy") == "1"
-        if make_proxy:
-            media.make_proxy(tmp_file, proxy)
-        with db_session() as conn:
             unit = conn.execute("SELECT unit FROM files WHERE file_id = ?", (file_id,)).fetchone()["unit"]
         storage = get_storage(settings)
+        cols = {}
+        try:
+            media.make_thumbnail(tmp_file, tmp_thumb)
+            thumb_remote = f"{config.THUMB_FOLDER}/{file_id}.jpg"
+            storage.put(tmp_thumb, thumb_remote)
+            cols["thumb_path"] = thumb_remote
+        except Exception:
+            traceback.print_exc()   # thieu thumbnail khong chan viec xu ly file
+        if settings.get("create_proxy") == "1":
+            media.make_proxy(tmp_file, tmp_proxy)
+            stored = proxy_svc.store_new(storage, tmp_proxy, file_name, file_id)
+            cols.update(proxy_path=stored["path"], proxy_base=stored["base"], proxy_size=stored["size"])
         remote = storage_path(unit, file_name, file_id, storage)
         storage.put(tmp_file, remote)
-        _set_status(file_id, "ready", "", storage_path=remote,
-                    proxy_path=proxy.name if make_proxy else "",
-                    thumb_path=thumb.name if thumb_ok else "")
+        _set_status(file_id, "ready", "", storage_path=remote, **cols)
         tmp_file.unlink(missing_ok=True)
     except Exception as exc:  # giu file tam de co the xu ly lai
         traceback.print_exc()
         _set_status(file_id, "error", str(exc)[:500])
+    finally:
+        tmp_thumb.unlink(missing_ok=True)
+        tmp_proxy.unlink(missing_ok=True)

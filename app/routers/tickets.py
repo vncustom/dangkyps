@@ -8,7 +8,7 @@ from fastapi.responses import RedirectResponse
 from app import config
 from app.db import get_db, now_str
 from app.security import require_roles
-from app.services import domain
+from app.services import domain, proxy
 from app.web import render
 
 router = APIRouter()
@@ -48,6 +48,14 @@ def _get_ticket(conn: sqlite3.Connection, so_phieu: int) -> dict:
     if not row:
         raise HTTPException(404, "Không tìm thấy phiếu")
     return dict(row)
+
+
+def _set_proxy_prefix(conn: sqlite3.Connection, file_id: int, assetform_id: str | None) -> None:
+    """Doi ten file proxy tren storage theo AssetForm ID cua phieu (None = tra ve ten goc)."""
+    try:
+        proxy.set_prefix(conn, file_id, assetform_id)
+    except Exception as exc:
+        raise HTTPException(502, f"Không đổi được tên file proxy trên storage: {exc}")
 
 
 @router.get("/tickets")
@@ -116,6 +124,8 @@ def ticket_edit(so_phieu: int, request: Request, assetform_id: str = Form(""), k
         return render(request, "ticket_form.html", user, status_code=400, t=t, errors=errors,
                       approved=[], file=domain.get_file(conn, t["file_id"]) if t["file_id"] else None,
                       today=date.today().isoformat(), **_form_ctx())
+    if t["file_id"] and assetform_id.strip() != t["assetform_id"]:
+        _set_proxy_prefix(conn, t["file_id"], assetform_id.strip())
     conn.execute(
         "UPDATE tickets SET assetform_id=?, kenh=?, ten_chuong_trinh=?, ngay_phat_song=?,"
         " the_loai=?, nguon_cung_cap=?, ghi_chu=? WHERE so_phieu=?",
@@ -137,6 +147,7 @@ def ticket_attach(so_phieu: int, file_id: int = Form(...), user: dict = Depends(
         raise HTTPException(400, "File chưa được kiểm duyệt Đạt")
     if f["so_phieu"]:
         raise HTTPException(400, f"File đã gắn vào phiếu {f['so_phieu']}")
+    _set_proxy_prefix(conn, file_id, t["assetform_id"])
     conn.execute("UPDATE tickets SET file_id = ? WHERE so_phieu = ?", (file_id, so_phieu))
     return RedirectResponse(f"/tickets/{so_phieu}", status_code=303)
 
@@ -144,6 +155,8 @@ def ticket_attach(so_phieu: int, file_id: int = Form(...), user: dict = Depends(
 @router.post("/tickets/{so_phieu}/detach")
 def ticket_detach(so_phieu: int, user: dict = Depends(thu_ky),
                   conn: sqlite3.Connection = Depends(get_db)):
-    _get_ticket(conn, so_phieu)
+    t = _get_ticket(conn, so_phieu)
+    if t["file_id"]:
+        _set_proxy_prefix(conn, t["file_id"], None)
     conn.execute("UPDATE tickets SET file_id = NULL WHERE so_phieu = ?", (so_phieu,))
     return RedirectResponse(f"/tickets/{so_phieu}", status_code=303)

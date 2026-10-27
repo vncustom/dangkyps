@@ -40,8 +40,10 @@ CREATE TABLE IF NOT EXISTS files (
     codec TEXT NOT NULL DEFAULT '',
     unit TEXT NOT NULL DEFAULT '',
     storage_path TEXT NOT NULL DEFAULT '',
-    proxy_path TEXT NOT NULL DEFAULT '',
-    thumb_path TEXT NOT NULL DEFAULT '',
+    proxy_path TEXT NOT NULL DEFAULT '',  -- duong dan tren storage: proxy/[<AssetFormID>_]<ten>_proxy.mp4
+    proxy_base TEXT NOT NULL DEFAULT '',  -- ten proxy khi chua co prefix AssetForm ID
+    proxy_size INTEGER NOT NULL DEFAULT 0,
+    thumb_path TEXT NOT NULL DEFAULT '',  -- duong dan tren storage: thumbs/<file_id>.jpg
     uploaded_by TEXT NOT NULL,
     uploaded_at TEXT NOT NULL,
     tech_checked_by TEXT NOT NULL DEFAULT '',
@@ -146,6 +148,8 @@ def _seed_sequence(conn: sqlite3.Connection, table: str, start: int) -> None:
 _MIGRATIONS = [  # (bang, cot, DDL) - bo sung cot cho DB tao tu phien ban cu
     ("files", "qc_result", "TEXT NOT NULL DEFAULT ''"),
     ("files", "qc_json", "TEXT NOT NULL DEFAULT ''"),
+    ("files", "proxy_base", "TEXT NOT NULL DEFAULT ''"),
+    ("files", "proxy_size", "INTEGER NOT NULL DEFAULT 0"),
     ("uploads", "md5", "TEXT NOT NULL DEFAULT ''"),
     ("uploads", "qc_result", "TEXT NOT NULL DEFAULT ''"),
     ("uploads", "qc_json", "TEXT NOT NULL DEFAULT ''"),
@@ -160,7 +164,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
 
 
 def init_db() -> None:
-    for d in (config.DATA_DIR, config.TMP_DIR, config.PROXY_DIR, config.THUMB_DIR):
+    for d in (config.DATA_DIR, config.TMP_DIR):
         d.mkdir(parents=True, exist_ok=True)
     conn = connect()
     try:

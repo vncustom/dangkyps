@@ -1,8 +1,8 @@
 """Xoa du lieu test truoc khi chay production (GIU user, vai tro, cau hinh storage).
 
-Xoa: file, danh gia, phieu, upload dang do trong CSDL; thumbnail, proxy, file tam (data/tmp).
+Xoa: file, danh gia, phieu, upload dang do trong CSDL; file tam (data/tmp).
 Dat lai bo dem File ID / So phieu (se bat dau lai tu FILE_ID_START / TICKET_START trong .env).
-KHONG xoa file video tren storage FTP (xoa tay), chi xoa data/storage neu them --with-local-storage.
+KHONG xoa file tren storage FTP (video, folder thumbs/ va proxy/ - xoa tay), chi xoa data/storage neu them --with-local-storage.
 
 Dung (DUNG app truoc):  python scripts/reset_test_data.py [--yes] [--with-local-storage]
 """
@@ -39,7 +39,7 @@ def main() -> None:
               for t in ("files", "reviews", "tickets", "uploads")}
     print(f"CSDL: {config.DB_PATH}")
     print("Se xoa:", ", ".join(f"{v} {k}" for k, v in counts.items()),
-          f"| thumbnail/proxy/tmp trong {config.DATA_DIR}")
+          f"| file tam trong {config.TMP_DIR}")
     if args.with_local_storage:
         print("      va TOAN BO", config.LOCAL_STORAGE_DIR)
     print("Se GIU: user, vai tro, cau hinh storage. Hay chac chan app DA DUNG va da backup.")
@@ -55,7 +55,7 @@ def main() -> None:
     conn.execute("VACUUM")
     conn.close()
 
-    dirs = [config.THUMB_DIR, config.PROXY_DIR, config.TMP_DIR]
+    dirs = [config.TMP_DIR]
     if args.with_local_storage:
         dirs.append(config.LOCAL_STORAGE_DIR)
     for d in dirs:

@@ -105,8 +105,8 @@ Các giá trị **bắt buộc đổi** so với máy dev:
 | `STORAGE_TYPE=ftp`, `FTP_HOST`, `FTP_PORT`, `FTP_USER`, `FTP_PASS`, `FTP_BASE_DIR` | Trỏ tới **FTP thật** của đài (không dùng `scripts\dev_ftp.py`) |
 | `HTV_SSO_SECRET`, `HTV_SSO_SERVER_URL`, `HTV_SSO_APP_URL`, `HTV_SSO_VERIFY_SLO` | Nếu dùng đăng nhập SSO HTV: secret phải **giống hệt** Dashboard SSO. Để trống secret = từ chối mọi token SSO (chỉ đăng nhập bằng user/mật khẩu) |
 | `FILE_ID_START`, `TICKET_START` | Số File ID / Số phiếu bắt đầu (chỉ có tác dụng khi bảng còn trống, xem mục 4) |
-| `DB_PATH` | Mặc định `data\dkps.db`. Có thể đặt sang ổ khác (thư mục `tmp`, `thumbs`, `proxy` nằm cùng thư mục với file DB) |
-| `CREATE_PROXY` | Để `0` (xem trực tiếp file gốc). Chỉ bật khi máy xem bị giật |
+| `DB_PATH` | Mặc định `data\dkps.db`. Có thể đặt sang ổ khác (thư mục `tmp` nằm cùng thư mục với file DB) |
+| `CREATE_PROXY` | Để `1` (mặc định): tạo proxy 720p, player duyệt xem proxy cho nhẹ băng thông |
 
 > Lưu ý: cấu hình storage được **lưu trong CSDL** (bảng `settings`) sau lần lưu đầu tiên ở trang **Storage**. Giá trị `FTP_*` trong `.env` chỉ là giá trị khởi tạo. Nếu copy DB từ máy dev sang, storage sẽ vẫn trỏ về FTP test → vào trang Storage kiểm tra lại.
 
@@ -117,10 +117,9 @@ Dữ liệu test nằm ở:
 | Nơi | Chứa |
 |---|---|
 | `data\dkps.db` (+ `-wal`, `-shm`) | file, đánh giá, phiếu, user, vai trò đã gán, cấu hình storage |
-| `data\thumbs\`, `data\proxy\` | thumbnail, bản proxy |
 | `data\tmp\` | file tạm của upload (`*.part`) |
 | `data\storage\` | file video nếu từng dùng storage "Thư mục cục bộ" |
-| **FTP storage** | các video đã upload khi test (nằm trong các folder đơn vị, ví dụ `BanChuongtrinh\`, hoặc `files\<id>\` của bản cũ) |
+| **FTP storage** | các video đã upload khi test (nằm trong các folder đơn vị, ví dụ `BanChuongtrinh\`, hoặc `files\<id>\` của bản cũ), cùng folder `thumbs\` và `proxy\` |
 
 > **Làm trước:** dừng app và **backup** (mục 7.2). Xóa là không phục hồi được.
 
@@ -136,14 +135,14 @@ cd D:\dangkyps
 #    (thêm --with-local-storage nếu cũng muốn xóa data\storage; thêm --yes để bỏ bước hỏi)
 ```
 
-Script xóa: file, đánh giá, phiếu, upload dở trong CSDL; thumbnail, proxy, file tạm; **đặt lại bộ đếm** để File ID / Số phiếu bắt đầu lại từ `FILE_ID_START` / `TICKET_START` trong `.env` khi khởi động lại app. Script **không** động tới user, vai trò, cấu hình storage.
+Script xóa: file, đánh giá, phiếu, upload dở trong CSDL; file tạm; **đặt lại bộ đếm** để File ID / Số phiếu bắt đầu lại từ `FILE_ID_START` / `TICKET_START` trong `.env` khi khởi động lại app. Script **không** động tới user, vai trò, cấu hình storage.
 
 ### Cách B – làm sạch hoàn toàn (kể cả user và vai trò)
 
 ```powershell
 # Dừng app (schtasks /end /tn DangKyPhatSong), rồi:
 Remove-Item data\dkps.db, data\dkps.db-wal, data\dkps.db-shm -ErrorAction SilentlyContinue
-Remove-Item data\thumbs\*, data\proxy\*, data\tmp\* -Recurse -ErrorAction SilentlyContinue
+Remove-Item data\tmp\* -Recurse -ErrorAction SilentlyContinue
 ```
 
 Khi khởi động lại, app tạo DB mới và nạp lại user từ CSV với mật khẩu mặc định. **Phải gán lại vai trò** (`ky_thuat`, `bien_tap_vien`, `thu_ky`) ở trang Người dùng và nhập lại cấu hình Storage.
@@ -217,7 +216,7 @@ Dừng app (hoặc chọn lúc không ai upload) rồi chép:
 | `tailieu chuan bi lam app\Danh sách_user.csv` | Nguồn user |
 | Video trên FTP | Do bộ phận quản lý FTP backup |
 
-`data\thumbs`, `data\proxy`, `data\tmp` không cần backup (thumbnail có thể tạo lại bằng cách upload lại; tmp là file tạm).
+`data\tmp` không cần backup (file tạm). Thumbnail và proxy nằm trên storage, trong folder `thumbs\` và `proxy\` cạnh các folder đơn vị; backup/xóa cùng storage.
 
 ### 7.3 Theo dõi dung lượng
 
@@ -274,7 +273,7 @@ Khi chạy tự động, log nằm ở `logs\app.log` (và `logs\app.old.log`); 
 | Upload báo `MD5 không khớp` | File bị lỗi khi truyền hoặc bị sửa sau khi Check → Check và Upload lại. Lặp lại nhiều lần → kiểm tra mạng / ổ đĩa của máy kỹ thuật |
 | Upload bị đứt giữa chừng | Mất kết nối, đóng tab, máy ngủ hoặc app khởi động lại. Upload lại từ đầu (không tiếp tục được) |
 | Check file báo FAIL với file HEVC | Xem cột Result từng mục. Mục "Video compression" đã nhận H.264/HEVC; FAIL thường do độ phân giải, fps, profile/level, chroma/bit depth (hiện yêu cầu 8-bit) hoặc audio. Đổi yêu cầu trong `QC_SPEC` nếu cần. Kết quả Check chỉ tham khảo – kỹ thuật quyết định có Upload không |
-| Player xem file bị giật / không phát | HEVC 4K cần máy xem giải mã được (thường cần GPU). Bật **Tạo thêm bản proxy** ở trang Storage cho các file upload sau đó |
+| Player xem file bị giật / không phát | HEVC 4K cần máy xem giải mã được (thường cần GPU). Kiểm tra file có bản proxy không (trang Storage bật **Tạo bản proxy** cho các file upload sau đó); proxy lỗi thì player mới xem file gốc |
 | Ban phụ trách không thấy file cần duyệt | `ds_ban` của họ chưa quy đổi được sang đúng đơn vị → bổ sung `DS_BAN_TO_UNIT`; hoặc user chưa có đúng vai trò trưởng/phó ban trong CSV |
 | `database is locked` | Hiếm gặp; do có tiến trình khác mở file DB (backup đang chạy, công cụ xem SQLite). Đóng tiến trình đó |
 | Cổng 8004 đã bị dùng | Có bản app khác đang chạy → dừng nó, hoặc `run.bat 8080` |

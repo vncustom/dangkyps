@@ -124,8 +124,13 @@ def test_upload_md5_matches_and_rejects_non_mp4(login, sample_videos):
         f = conn.execute("SELECT * FROM files WHERE file_id = ?", (res["file_id"],)).fetchone()
     assert f["md5"] == md5_upper(path) and f["fps"] == 25 and f["width"] == 320
     assert f["duration_tc"].startswith("00:00:02") and f["storage_path"]
-    assert f["proxy_path"] == ""  # mac dinh khong tao proxy, xem truc tiep file goc
     assert (config.LOCAL_STORAGE_DIR / f["storage_path"]).stat().st_size == path.stat().st_size
+    # thumbnail va proxy nam trong storage, moi loai mot folder rieng; proxy co suffix _proxy
+    assert f["thumb_path"] == f"thumbs/{res['file_id']}.jpg"
+    assert (config.LOCAL_STORAGE_DIR / f["thumb_path"]).stat().st_size > 0
+    assert f["proxy_path"] == f"proxy/{path.stem}_proxy.mp4" and f["proxy_base"] == f"{path.stem}_proxy.mp4"
+    assert (config.LOCAL_STORAGE_DIR / f["proxy_path"]).stat().st_size == f["proxy_size"] > 0
+    assert not list(config.TMP_DIR.glob(f"{res['file_id']}_*"))   # file tam thumb/proxy da don
     r = tech.post("/api/upload/init", json={"file_name": "x.mxf", "size": 10, "unit": "Ban Chương trình", "md5": "0" * 32})
     assert r.status_code == 400
     # gui thieu / thua byte so voi dung luong khai bao bi tu choi, file tam va dong upload bi xoa
@@ -257,30 +262,64 @@ def test_media_range_requests(login, sample_videos):
     assert r.status_code == 206 and r.content == sample_videos["h264"].read_bytes()[-5:]
     r = tech.get(f"/media/{fid}/original")
     assert r.status_code == 200 and len(r.content) == size
-    assert tech.get(f"/media/{fid}/thumb").status_code == 200
-    assert tech.get(f"/media/{fid}/proxy").status_code == 404  # khong co proxy
+    r = tech.get(f"/media/{fid}/thumb")
+    assert r.status_code == 200 and r.headers["content-type"] == "image/jpeg" and r.content[:2] == b"\xff\xd8"
+    r = tech.get(f"/media/{fid}/proxy", headers={"Range": "bytes=0-9"})
+    assert r.status_code == 206 and len(r.content) == 10
 
 
-def test_player_uses_original_unless_proxy_enabled(login, sample_videos):
+def test_player_uses_proxy_by_default(login, sample_videos):
     admin, tech = login("admin"), login("tech1")
     res = upload(tech, sample_videos["h264"])
     wait_ready(res["file_id"])
     fid = res["file_id"]
     page = admin.get(f"/review/{fid}").text
-    assert f'src="/media/{fid}/original"' in page and "data-original" not in page
-    # bat tao proxy -> file moi co proxy va player dung proxy
-    r = admin.post("/admin/settings", data={"storage_type": "local", "create_proxy": "1"})
-    assert r.status_code == 303
+    assert f'src="/media/{fid}/proxy"' in page and f'data-original="/media/{fid}/original"' in page
+    # tat tao proxy -> file moi khong co proxy, player xem file goc
+    assert admin.post("/admin/settings", data={"storage_type": "local"}).status_code == 303
     try:
         res2 = upload(tech, sample_videos["h264"])
         wait_ready(res2["file_id"])
         fid2 = res2["file_id"]
         page2 = admin.get(f"/review/{fid2}").text
-        assert f'src="/media/{fid2}/proxy"' in page2 and f'data-original="/media/{fid2}/original"' in page2
-        r = tech.get(f"/media/{fid2}/proxy", headers={"Range": "bytes=0-9"})
-        assert r.status_code == 206 and len(r.content) == 10
+        assert f'src="/media/{fid2}/original"' in page2 and "data-original" not in page2
+        assert tech.get(f"/media/{fid2}/proxy").status_code == 404
     finally:
-        admin.post("/admin/settings", data={"storage_type": "local"})  # tat lai
+        admin.post("/admin/settings", data={"storage_type": "local", "create_proxy": "1"})  # bat lai
+
+
+def test_proxy_renamed_with_assetform_id_on_attach(login, sample_videos):
+    tech, sec = login("tech1"), login("sec1")
+    fid = upload(tech, sample_videos["h264"])["file_id"]
+    wait_ready(fid)
+    approve(fid)
+
+    def proxy_path():
+        with db_session() as conn:
+            return conn.execute("SELECT proxy_path FROM files WHERE file_id = ?", (fid,)).fetchone()[0]
+
+    stem = sample_videos["h264"].stem
+    base = proxy_path()   # cac test truoc da upload cung ten -> co the them _<file_id>
+    assert base.startswith(f"proxy/{stem}") and base.endswith("_proxy.mp4")
+    name = base.split("/", 1)[1]
+    so = new_ticket(sec, assetform_id="AF 77").headers["location"].rsplit("/", 1)[1]
+    assert sec.post(f"/tickets/{so}/attach", data={"file_id": fid}).status_code == 303
+    named = f"proxy/AF_77_{name}"
+    assert proxy_path() == named
+    assert (config.LOCAL_STORAGE_DIR / named).exists() and not (config.LOCAL_STORAGE_DIR / base).exists()
+    assert tech.get(f"/media/{fid}/proxy", headers={"Range": "bytes=0-9"}).status_code == 206
+    # sua AssetForm ID tren phieu -> doi lai prefix
+    form = dict(assetform_id="AF88", kenh="HTV7", ten_chuong_trinh="x", ngay_phat_song="2026-10-14",
+                the_loai="CT", nguon_cung_cap="HTV", ghi_chu="")
+    assert sec.post(f"/tickets/{so}/edit", data=form).status_code == 303
+    assert proxy_path() == f"proxy/AF88_{name}"
+    # bo file ra khoi phieu -> ten proxy tro ve nhu luc upload
+    assert sec.post(f"/tickets/{so}/detach").status_code == 303
+    assert proxy_path() == base and (config.LOCAL_STORAGE_DIR / base).exists()
+    # xoa file -> xoa luon thumb va proxy tren storage
+    assert tech.post(f"/files/{fid}/delete").status_code == 303
+    assert not (config.LOCAL_STORAGE_DIR / base).exists()
+    assert not (config.LOCAL_STORAGE_DIR / f"thumbs/{fid}.jpg").exists()
 
 
 # ---- review rules / tickets ------------------------------------------------

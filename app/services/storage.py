@@ -1,4 +1,5 @@
 """Storage luu file video goc. Doi backend chi can sua cau hinh (bang settings)."""
+import io
 import posixpath
 import shutil
 from abc import ABC, abstractmethod
@@ -21,6 +22,13 @@ class StorageBackend(ABC):
     @abstractmethod
     def open_range(self, remote_path: str, start: int, end: int) -> Iterator[bytes]:
         """Doc byte [start, end] (inclusive)."""
+
+    @abstractmethod
+    def get(self, remote_path: str) -> bytes:
+        """Doc tron file nho (thumbnail)."""
+
+    @abstractmethod
+    def rename(self, old_path: str, new_path: str) -> None: ...
 
     @abstractmethod
     def delete(self, remote_path: str) -> None: ...
@@ -54,6 +62,14 @@ class LocalStorage(StorageBackend):
                     break
                 remaining -= len(data)
                 yield data
+
+    def get(self, remote_path):
+        return self._p(remote_path).read_bytes()
+
+    def rename(self, old_path, new_path):
+        dest = self._p(new_path)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        self._p(old_path).replace(dest)
 
     def delete(self, remote_path):
         self._p(remote_path).unlink(missing_ok=True)
@@ -124,6 +140,27 @@ class FtpStorage(StorageBackend):
             if conn:
                 conn.close()
             ftp.close()
+
+    def get(self, remote_path):
+        ftp = self._connect()
+        try:
+            buf = io.BytesIO()
+            ftp.retrbinary(f"RETR {self._full(remote_path)}", buf.write)
+            return buf.getvalue()
+        finally:
+            ftp.close()
+
+    def rename(self, old_path, new_path):
+        full_new = self._full(new_path)
+        ftp = self._connect()
+        try:
+            self._ensure_dir(ftp, posixpath.dirname(full_new))
+            ftp.rename(self._full(old_path), full_new)
+        finally:
+            try:
+                ftp.quit()
+            except Exception:
+                ftp.close()
 
     def delete(self, remote_path):
         ftp = self._connect()

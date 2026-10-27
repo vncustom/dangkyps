@@ -96,13 +96,12 @@ def delete_file(file_id: int, user: dict = Depends(ky_thuat),
         raise HTTPException(400, f"File đã gắn vào phiếu {f['so_phieu']}, không thể xóa")
     if f["status"] == "processing":
         raise HTTPException(400, "File đang xử lý, thử lại sau")
-    if f["storage_path"]:
-        try:
-            get_storage(get_settings(conn)).delete(f["storage_path"])
-        except Exception:
-            pass
-    for folder, name in ((config.PROXY_DIR, f["proxy_path"]), (config.THUMB_DIR, f["thumb_path"])):
-        if name:
-            (folder / name).unlink(missing_ok=True)
+    storage = get_storage(get_settings(conn))
+    for remote in (f["storage_path"], f["proxy_path"], f["thumb_path"]):
+        if remote:
+            try:
+                storage.delete(remote)
+            except Exception:
+                pass
     conn.execute("DELETE FROM files WHERE file_id = ?", (file_id,))
     return RedirectResponse("/files", status_code=303)
